@@ -1,0 +1,70 @@
+package com.codepurls.mailytics.service.ingest;
+
+import static java.lang.String.format;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.Properties;
+
+import javax.mail.Folder;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Store;
+import javax.mail.URLName;
+
+import net.fortuna.mstor.data.MboxFile;
+import net.fortuna.mstor.data.MboxFile.BufferStrategy;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.codepurls.mailytics.data.mbox.MBoxFolder;
+import com.codepurls.mailytics.data.mbox.MBoxMail;
+
+public class MBoxReader implements MailReader {
+  public static final Logger LOG = LoggerFactory.getLogger(MBoxReader.class);
+
+  public void visit(MailReaderContext context, String uri, MailVisitor visitor) throws MailReaderException {
+    Properties props = new Properties();
+    System.setProperty(MboxFile.KEY_BUFFER_STRATEGY, BufferStrategy.MAPPED.name());
+    System.setProperty("mstor.cache.disabled", "true");
+    props.setProperty("mstor.mbox.metadataStrategy", "none");
+    Session session = Session.getDefaultInstance(props);
+    try {
+      Store store = session.getStore(new URLName(format("mstor:%s", uri)));
+      store.connect();
+      Folder folder = store.getDefaultFolder();
+      walk(null, folder, visitor);
+    } catch (Exception e) {
+      throw new MailReaderException(format("Error reading file: %s", uri), e);
+    }
+  }
+
+  public void visit(MailReaderContext context, File file, MailVisitor visitor) {
+    visit(context, file.getAbsolutePath(), visitor);
+  }
+
+  private void walk(MBoxFolder parent, Folder folder, MailVisitor visitor) {
+    try {
+      folder.open(Folder.READ_ONLY);
+      MBoxFolder mboxFolder = new MBoxFolder(folder, parent);
+      visitor.onNewFolder(mboxFolder);
+      if ((folder.getType() & Folder.HOLDS_MESSAGES) != 0) {
+        for (int i = 1; i < Integer.MAX_VALUE; i++) {
+          try {
+            Message message = folder.getMessage(i);
+            visitor.onNewMail(new MBoxMail(mboxFolder, message));
+          } catch (IndexOutOfBoundsException e) {
+            break;
+          }
+        }
+      }
+      if ((folder.getType() & Folder.HOLDS_FOLDERS) != 0) {
+        Arrays.stream(folder.list()).forEach((f) -> walk(new MBoxFolder(f, parent), f, visitor));
+      }
+    } catch (MessagingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+}
