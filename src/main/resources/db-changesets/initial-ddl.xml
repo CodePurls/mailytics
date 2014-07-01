@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+	<changeSet id="1" author="nirav">
+		<createTable tableName="user">
+			<column name="id" type="int" autoIncrement="true">
+				<constraints primaryKey="true" primaryKeyName="PK_USERID" />
+			</column>
+			<column name="user_name" type="varchar(64)">
+				<constraints unique="true" uniqueConstraintName="UK_USERNAME" />
+			</column>
+			<column name="first_name" type="varchar(128)">
+				<constraints nullable="false" />
+			</column>
+			<column name="last_name" type="varchar(128)">
+				<constraints nullable="false" />
+			</column>
+			<column name="email" type="varchar(128)">
+				<constraints unique="true" uniqueConstraintName="UK_EMAIL" />
+			</column>
+			<column name="phash" type="varchar(4096)" />
+			<column name="deleted" type="boolean" />
+		</createTable>
+
+		<createTable tableName="event_type">
+			<column name="action" type="varchar(64)" >
+				<constraints primaryKey="true" primaryKeyName="PK_EVT_TYPE"/>
+			</column>
+			<column name="description" type="varchar(512)" />
+		</createTable>
+
+		<insert tableName="event_type">
+			<column name="action" value="created" />
+			<column name="description" value="Item created" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="deleted" />
+			<column name="description" value="Item deleted" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="updated" />
+			<column name="description" value="Item updated" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="login-success" />
+			<column name="description" value="Login Successful" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="login-failure" />
+			<column name="description" value="Login Failure" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="logout" />
+			<column name="description" value="Logout Successful" />
+		</insert>
+		<insert tableName="event_type">
+			<column name="action" value="password-chage" />
+			<column name="description" value="Password changed" />
+		</insert>
+
+		<createTable tableName="event_log">
+			<column name="id" type="int" autoIncrement="true">
+				<constraints primaryKey="true" primaryKeyName="PK_EVENTLOG_ID" />
+			</column>
+			<column name="userid" type="int">
+				<constraints foreignKeyName="FK_AUDIT_UID" references="user" referencedColumnNames="id" nullable="false" />
+			</column>
+			<column name="event_time" type="timestamp" />
+			<column name="object" type="varchar(64)" />
+			<column name="action" type="varchar(64)">
+				<constraints foreignKeyName="FK_EVENTLOG_EVENTTYPE" references="event_type" referencedColumnNames="action" nullable="false" />
+			</column>
+			<column name="old_value" type="varchar(60000)" />
+			<column name="new_value" type="varchar(60000)" />
+		</createTable>
+		<createIndex tableName="event_log" indexName="IDX_UID" unique="false">
+			<column name="userid" />
+		</createIndex>
+		<createIndex tableName="event_log" indexName="IDX_UID_TYPE" unique="false">
+			<column name="userid" />
+			<column name="action" />
+		</createIndex>
+		
+		<createTable tableName="mailbox">
+			<column name="id" type="int" autoIncrement="true">
+				<constraints primaryKey="true" primaryKeyName="PK_MBOX_ID"/>
+			</column>
+			<column name="type" type="varchar(16)" >
+				<constraints nullable="false"/>
+			</column>
+			<column name="location" type="varchar(16384)" >
+				<constraints nullable="false"/>
+			</column>
+			<column name="userid" type="int">
+				<constraints foreignKeyName="FK_MBOX_UID" references="user" referencedColumnNames="id" nullable="false" />
+			</column>
+			<column name="size" type="long" />
+			<column name="num_folders" type="int" />
+			<column name="num_messages" type="int" />
+			<column name="last_folder_read" type="int" />
+			<column name="last_message_read" type="int" />
+			<column name="status" type="varchar(32)" />
+		</createTable>
+	</changeSet>
+
+</databaseChangeLog>

@@ -2,7 +2,9 @@ package com.codepurls.mailytics;
 
 import io.dropwizard.Application;
 import io.dropwizard.auth.oauth.OAuthProvider;
+import io.dropwizard.db.DataSourceFactory;
 import io.dropwizard.jdbi.DBIFactory;
+import io.dropwizard.migrations.MigrationsBundle;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 
@@ -24,7 +26,11 @@ public class Mailytics extends Application<Config> {
   }
 
   public void initialize(Bootstrap<Config> bootstrap) {
-
+    bootstrap.addBundle(new MigrationsBundle<Config>() {
+      public DataSourceFactory getDataSourceFactory(Config configuration) {
+        return configuration.db;
+      }
+    });
   }
 
   public void run(Config cfg, Environment env) throws Exception {
