@@ -13,6 +13,8 @@
 		<junit.version>4.11</junit.version>
 		<java-libpst.version>0.7</java-libpst.version>
 		<jdk.version>1.8</jdk.version>
+		<h2.version>1.4.179</h2.version>
+		<lucene.version>4.9.0</lucene.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -26,6 +28,11 @@
 			<version>${dropwizard.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<version>${h2.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>javax.mail</groupId>
 			<artifactId>javax.mail-api</artifactId>
 			<version>${javamail.version}</version>
@@ -34,6 +41,16 @@
 			<groupId>com.sun.mail</groupId>
 			<artifactId>mailapi</artifactId>
 			<version>${javamail.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-core</artifactId>
+			<version>${lucene.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-analyzers-common</artifactId>
+			<version>${lucene.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>

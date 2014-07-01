@@ -8,4 +8,5 @@ public class User {
   public Integer       id;
   public String        firstName, lastName, email, organization;
   public List<Mailbox> mailboxes;
+  public String username;
 }
