@@ -1,5 +1,13 @@
 package com.codepurls.mailytics.service.security;
 
-public class UserService {
+import io.dropwizard.lifecycle.Managed;
+
+public class UserService implements Managed{
+
+  public void start() throws Exception {
+  }
+
+  public void stop() throws Exception {
+  }
 
 }

@@ -11,6 +11,6 @@ public class Mailbox {
   }
 
   public Type type;
-  public String mailDir, fullName, description, email, username, password;
+  public String mailLocation, fullName, description, email, username, password;
   public Server incomingServer, outgoingServer;
 }
