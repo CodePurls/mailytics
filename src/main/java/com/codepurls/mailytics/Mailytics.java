@@ -33,7 +33,7 @@ public class Mailytics extends Application<Config> {
     UserService userService = new UserService(dbi.onDemand(UserDao.class));
     env.lifecycle().manage(new IndexingService(cfg.index, userService));
     env.jersey().register(new V1(userService));
-    env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(), "mailytics.com"));
+    env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(userService), "mailytics.com"));
     env.servlets().addFilter("CORSFilter", new CORSFilter(cfg.cors));
   }
 

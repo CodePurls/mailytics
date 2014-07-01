@@ -8,7 +8,7 @@ import com.codepurls.mailytics.api.v1.resources.SearchAPI;
 import com.codepurls.mailytics.api.v1.resources.SecurityAPI;
 import com.codepurls.mailytics.service.security.UserService;
 
-@Path("1")
+@Path("api/1")
 public class V1 {
   private final UserService userService;
 

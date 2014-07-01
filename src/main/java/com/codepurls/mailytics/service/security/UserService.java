@@ -5,6 +5,7 @@ import io.dropwizard.lifecycle.Managed;
 import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.dao.UserDao;
+import com.google.common.base.Optional;
 
 public class UserService implements Managed {
 
@@ -26,6 +27,10 @@ public class UserService implements Managed {
 
   public void createMailbox(User user, Mailbox mailbox) {
 
+  }
+
+  public Optional<User> findUser(String credentials) {
+    return null;
   }
 
 }
