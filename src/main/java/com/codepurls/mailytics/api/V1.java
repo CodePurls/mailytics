@@ -6,18 +6,24 @@ import com.codepurls.mailytics.api.v1.resources.AnalyticsAPI;
 import com.codepurls.mailytics.api.v1.resources.ManagementAPI;
 import com.codepurls.mailytics.api.v1.resources.SearchAPI;
 import com.codepurls.mailytics.api.v1.resources.SecurityAPI;
+import com.codepurls.mailytics.service.security.UserService;
 
 @Path("1")
 public class V1 {
+  private final UserService userService;
+
+  public V1(UserService userService) {
+    this.userService = userService;
+  }
 
   @Path("secure")
   public SecurityAPI getSecurityAPI() {
-    return new SecurityAPI();
+    return new SecurityAPI(userService);
   }
-  
+
   @Path("manage")
   public ManagementAPI getManagementAPI() {
-    return new ManagementAPI();
+    return new ManagementAPI(userService);
   }
 
   @Path("analytics")

@@ -26,22 +26,22 @@ import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.config.Config.IndexConfig;
 import com.codepurls.mailytics.data.core.Mail;
-import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.Tuple;
 
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingService implements Managed {
-  private static final Logger                    LOG         = LoggerFactory.getLogger("IndexingService");
-  private final IndexConfig                      index;
-  private final UserService                      userService;
-  private final ExecutorService                  indexerPool;
-  private final BlockingQueue<Tuple<User, Mail>> mailQueue;
-  private final AtomicBoolean                    keepRunning = new AtomicBoolean();
-  private final Map<User, IndexWriter>           userIndices;
-  private final Version                          version     = Version.LUCENE_4_9;
-  private final Analyzer                         analyzer;
+  private static final Logger                       LOG         = LoggerFactory.getLogger("IndexingService");
+  private final IndexConfig                         index;
+  private final UserService                         userService;
+  private final ExecutorService                     indexerPool;
+  private final BlockingQueue<Tuple<Mailbox, Mail>> mailQueue;
+  private final AtomicBoolean                       keepRunning = new AtomicBoolean();
+  private final Map<Mailbox, IndexWriter>           userIndices;
+  private final Version                             version     = Version.LUCENE_4_9;
+  private final Analyzer                            analyzer;
 
   public class IndexWorker implements Callable<AtomicLong> {
     private final AtomicLong counter = new AtomicLong();
@@ -59,16 +59,16 @@ public class IndexingService implements Managed {
     private void loop() throws IOException {
       while (keepRunning.get()) {
         try {
-          Tuple<User, Mail> tuple = mailQueue.take();
+          Tuple<Mailbox, Mail> tuple = mailQueue.take();
           if (tuple == null) {
             LOG.info("Received term signal, will quit.");
             break;
           }
-          User user = tuple.getKey();
-          IndexWriter writer = userIndices.get(user);
+          Mailbox mb = tuple.getKey();
+          IndexWriter writer = userIndices.get(mb);
           if (writer == null) {
-            writer = new IndexWriter(getWriterDir(user), getWriterConfig());
-            userIndices.put(user, writer);
+            writer = new IndexWriter(getWriterDir(mb), getWriterConfig());
+            userIndices.put(mb, writer);
           }
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
@@ -92,8 +92,8 @@ public class IndexingService implements Managed {
     return cfg;
   }
 
-  public Directory getWriterDir(User user) throws IOException {
-    return FSDirectory.open(new File(index.location, user.username));
+  public Directory getWriterDir(Mailbox mb) throws IOException {
+    return FSDirectory.open(new File(index.location, mb.user.username + File.separatorChar + mb.email));
   }
 
   public void start() throws Exception {
