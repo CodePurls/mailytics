@@ -3,7 +3,9 @@ package com.codepurls.mailytics.api.v1.resources;
 import io.dropwizard.auth.Auth;
 
 import javax.validation.Valid;
+import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -22,10 +24,17 @@ public class ManagementAPI {
     this.userService = userService;
   }
 
+  @Path("mailboxes")
+  @GET
+  public Response getMailbox(@Auth User user) {
+    return Response.ok(userService.getMailboxes(user)).build();
+  }
+
   @PUT
   public Response addMailbox(@Auth User user, @Valid Mailbox mailbox) {
     mailbox.user = user;
-    userService.createMailbox(user, mailbox);
-    return Response.created(UriBuilder.fromResource(ManagementAPI.class).build()).build();
+    Mailbox created = userService.createMailbox(user, mailbox);
+    created.user = user;
+    return Response.created(UriBuilder.fromPath("manage/{id}").build(created.id)).entity(created).build();
   }
 }
