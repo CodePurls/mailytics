@@ -70,4 +70,13 @@ public class UserService implements Managed {
     return userDao.getMailboxes(user.id);
   }
 
+  public Mailbox getMailbox(User user, int mailboxId) {
+    Collection<Mailbox> mailboxes = getMailboxes(user);
+    for (Mailbox mailbox : mailboxes) {
+      if(mailbox.id == mailboxId)
+        return mailbox;
+    }
+    return null;
+  }
+
 }

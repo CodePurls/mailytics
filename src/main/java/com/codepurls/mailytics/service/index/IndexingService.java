@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -26,7 +27,10 @@ import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.config.Config.IndexConfig;
 import com.codepurls.mailytics.data.core.Mail;
+import com.codepurls.mailytics.data.core.MailFolder;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.service.ingest.MailReader.MailVisitor;
+import com.codepurls.mailytics.service.ingest.MailReaderContext;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.Tuple;
 
@@ -38,10 +42,12 @@ public class IndexingService implements Managed {
   private final UserService                         userService;
   private final ExecutorService                     indexerPool;
   private final BlockingQueue<Tuple<Mailbox, Mail>> mailQueue;
-  private final AtomicBoolean                       keepRunning = new AtomicBoolean();
+  private final BlockingQueue<Mailbox>              mboxQueue;
+  private final AtomicBoolean                       keepRunning = new AtomicBoolean(true);
   private final Map<Mailbox, IndexWriter>           userIndices;
   private final Version                             version     = Version.LUCENE_4_9;
   private final Analyzer                            analyzer;
+  private final Thread                              mailboxVisitor;
 
   public class IndexWorker implements Callable<AtomicLong> {
     private final AtomicLong counter = new AtomicLong();
@@ -67,8 +73,13 @@ public class IndexingService implements Managed {
           Mailbox mb = tuple.getKey();
           IndexWriter writer = userIndices.get(mb);
           if (writer == null) {
-            writer = new IndexWriter(getWriterDir(mb), getWriterConfig());
-            userIndices.put(mb, writer);
+            synchronized (this) {
+              writer = userIndices.get(mb);
+              if (writer == null) {
+                writer = new IndexWriter(getWriterDir(mb), getWriterConfig());
+                userIndices.put(mb, writer);
+              }
+            }
           }
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
@@ -78,11 +89,53 @@ public class IndexingService implements Managed {
     }
   }
 
+  public class MailboxVisitor implements Runnable {
+    public void run() {
+      LOG.info("Starting MailboxVisitor");
+      while (keepRunning.get()) {
+        try {
+          doVisit();
+        } catch (InterruptedException e) {
+          LOG.error("Interrupted wailing for mailboxes will stop", e);
+          break;
+        } catch (Exception e) {
+          LOG.error("Error during mbox retrieval loop, will ignore", e);
+        }
+      }
+      LOG.info("Stopping MailboxVisitor");
+    }
+
+    private void doVisit() throws InterruptedException {
+      Mailbox mb = mboxQueue.take();
+      LOG.info("Will index new mailbox: {}", mb.name);
+      mb.visit(new MailReaderContext(), new MailVisitor() {
+        public void onNewMail(Mail mail) {
+          try {
+            mailQueue.put(Tuple.of(mb, mail));
+          } catch (InterruptedException e) {
+            Thread.interrupted();
+            throw new RuntimeException(e);
+          }
+        }
+
+        public void onNewFolder(MailFolder folder) {
+          LOG.info("Visiting folder {}", folder.getName());
+        }
+
+        public void onError(Throwable t, MailFolder folder, Mail mail) {
+          LOG.error("Error reading mails, mailbox: {}, folder: {}, mail: {}", mb.name, folder.getName(), mail.getHeaders());
+        }
+      });
+    }
+  }
+
   public IndexingService(IndexConfig index, UserService userService) {
     this.index = index;
     this.userService = userService;
     this.indexerPool = Executors.newFixedThreadPool(index.indexerThreads);
     this.mailQueue = new ArrayBlockingQueue<>(index.indexQueueSize);
+    this.mboxQueue = new ArrayBlockingQueue<>(32);
+    this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
     this.userIndices = new HashMap<>();
     this.analyzer = new StandardAnalyzer(version);
   }
@@ -93,7 +146,7 @@ public class IndexingService implements Managed {
   }
 
   public Directory getWriterDir(Mailbox mb) throws IOException {
-    return FSDirectory.open(new File(index.location, mb.user.username + File.separatorChar + mb.email));
+    return FSDirectory.open(new File(index.location, mb.user.username + File.separatorChar + mb.name));
   }
 
   public void start() throws Exception {
@@ -101,6 +154,7 @@ public class IndexingService implements Managed {
     for (int i = 0; i < index.indexerThreads; i++) {
       indexerPool.submit(new IndexWorker());
     }
+    mailboxVisitor.start();
     indexerPool.shutdown();
   }
 
@@ -115,18 +169,23 @@ public class IndexingService implements Managed {
 
   public void stop() throws Exception {
     this.keepRunning.set(false);
+    LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+    this.mailboxVisitor.interrupt();
     this.mailQueue.offer(null, 1, TimeUnit.SECONDS);
     this.indexerPool.shutdownNow();
-    this.userIndices.forEach((k, v) -> {
+    this.userIndices.forEach((k, w) -> {
       try {
-        v.commit();
-        v.close();
+        LOG.info("Closing index writer for mailbox {}", k.name);
+        w.close(true);
       } catch (Exception e) {
         LOG.error("Error commiting index of {}", k.username, e);
       }
     });
     this.userIndices.clear();
+  }
 
+  public void index(Mailbox mb) {
+    mboxQueue.add(mb);
   }
 
   public IndexConfig getIndex() {

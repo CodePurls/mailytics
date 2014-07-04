@@ -46,14 +46,14 @@ public class Mailytics extends Application<Config> {
 
     env.lifecycle().manage(indexingService);
     configureJersey(env);
-    configureAPI(cfg, env, userService);
+    configureAPI(cfg, env, indexingService);
 
     instance = this;
   }
 
-  private void configureAPI(Config cfg, Environment env, UserService userService) {
-    env.jersey().register(new V1(userService));
-    env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(userService), "mailytics.com"));
+  private void configureAPI(Config cfg, Environment env, IndexingService indexingService) {
+    env.jersey().register(new V1(indexingService));
+    env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(indexingService.getUserService()), "mailytics.com"));
     env.servlets().addFilter("CORSFilter", new CORSFilter(cfg.cors));
   }
 

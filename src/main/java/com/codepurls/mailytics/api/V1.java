@@ -6,14 +6,17 @@ import com.codepurls.mailytics.api.v1.resources.AnalyticsAPI;
 import com.codepurls.mailytics.api.v1.resources.ManagementAPI;
 import com.codepurls.mailytics.api.v1.resources.SearchAPI;
 import com.codepurls.mailytics.api.v1.resources.SecurityAPI;
+import com.codepurls.mailytics.service.index.IndexingService;
 import com.codepurls.mailytics.service.security.UserService;
 
 @Path("api/1")
 public class V1 {
-  private final UserService userService;
+  private final UserService     userService;
+  private final IndexingService indexingService;
 
-  public V1(UserService userService) {
-    this.userService = userService;
+  public V1(IndexingService indexingService) {
+    this.indexingService = indexingService;
+    this.userService = indexingService.getUserService();
   }
 
   @Path("secure")
@@ -23,7 +26,7 @@ public class V1 {
 
   @Path("manage")
   public ManagementAPI getManagementAPI() {
-    return new ManagementAPI(userService);
+    return new ManagementAPI(userService, indexingService);
   }
 
   @Path("analytics")
