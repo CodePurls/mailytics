@@ -3,6 +3,7 @@ package com.codepurls.mailytics.service.ingest;
 import static java.lang.String.format;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Properties;
 
@@ -24,6 +25,7 @@ import com.codepurls.mailytics.data.mbox.MBoxMail;
 
 public class MBoxReader implements MailReader {
   public static final Logger LOG = LoggerFactory.getLogger(MBoxReader.class);
+  private Store              store;
 
   public void visit(MailReaderContext context, String uri, MailVisitor visitor) throws MailReaderException {
     Properties props = new Properties();
@@ -32,7 +34,7 @@ public class MBoxReader implements MailReader {
     props.setProperty("mstor.mbox.metadataStrategy", "none");
     Session session = Session.getDefaultInstance(props);
     try {
-      Store store = session.getStore(new URLName(format("mstor:%s", uri)));
+      store = session.getStore(new URLName(format("mstor:%s", uri)));
       store.connect();
       Folder folder = store.getDefaultFolder();
       walk(null, folder, visitor);
@@ -65,6 +67,14 @@ public class MBoxReader implements MailReader {
       }
     } catch (MessagingException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  public void close() throws IOException {
+    try {
+      store.close();
+    } catch (MessagingException e) {
+      throw new IOException(e);
     }
   }
 }

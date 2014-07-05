@@ -1,7 +1,5 @@
 package com.codepurls.mailytics.service.security;
 
-import io.dropwizard.lifecycle.Managed;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -10,16 +8,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.data.core.Mailbox.MailboxStatus;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.EventLogService;
 import com.codepurls.mailytics.service.EventLogService.EventType;
 import com.codepurls.mailytics.service.EventLogService.ObjectType;
 import com.codepurls.mailytics.service.dao.UserDao;
+import com.codepurls.mailytics.utils.crypto.PBEHash;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
 import com.google.common.hash.Hashing;
 
-public class UserService implements Managed {
+public class UserService {
   private static final Logger   LOG = LoggerFactory.getLogger(UserService.class);
   private final UserDao         userDao;
   private final EventLogService eventLogService;
@@ -27,12 +27,6 @@ public class UserService implements Managed {
   public UserService(EventLogService eventLogService, UserDao userDao) {
     this.eventLogService = eventLogService;
     this.userDao = userDao;
-  }
-
-  public void start() throws Exception {
-  }
-
-  public void stop() throws Exception {
   }
 
   public UserDao getUserDao() {
@@ -55,7 +49,7 @@ public class UserService implements Managed {
     try {
       String uid = credentials.substring(0, boundary);
       String hash = credentials.substring(Math.min(credentials.length(), boundary + 1));
-      User user =  userDao.findById(Integer.parseInt(uid));
+      User user = userDao.findById(Integer.parseInt(uid));
       if (user != null) {
         String h = user.phash;
         String sha1 = Hashing.sha256().hashString(h, Charsets.UTF_8).toString();
@@ -68,6 +62,12 @@ public class UserService implements Managed {
     return none;
   }
 
+  public String authenticate(String username, String password) {
+    User user = userDao.findByUsername(username);
+    if (PBEHash.validatePassword(password, user.phash)) return user.id + '.' + password;
+    return null;
+  }
+
   public Collection<Mailbox> getMailboxes(User user) {
     Collection<Mailbox> mailboxes = userDao.getMailboxes(user.id);
     mailboxes.forEach((mb) -> mb.user = user);
@@ -77,8 +77,7 @@ public class UserService implements Managed {
   public Mailbox getMailbox(User user, int mailboxId) {
     Collection<Mailbox> mailboxes = getMailboxes(user);
     for (Mailbox mailbox : mailboxes) {
-      if(mailbox.id == mailboxId)
-        return mailbox;
+      if (mailbox.id == mailboxId) return mailbox;
     }
     return null;
   }
@@ -87,10 +86,13 @@ public class UserService implements Managed {
     Collection<Mailbox> mailboxes = getMailboxes(user);
     List<Mailbox> toReturn = new ArrayList<Mailbox>(mailboxes.size() - mbIds.size());
     for (Mailbox mailbox : mailboxes) {
-      if(mbIds.contains(mailbox.id))
-        toReturn.add(mailbox);
+      if (mbIds.contains(mailbox.id)) toReturn.add(mailbox);
     }
     return toReturn;
+  }
+
+  public void updateMailboxStatus(Mailbox mb, MailboxStatus status) {
+    userDao.updateMailboxStatus(mb.id, status.name());
   }
 
 }

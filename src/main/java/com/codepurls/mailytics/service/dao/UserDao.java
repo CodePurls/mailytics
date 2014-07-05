@@ -14,13 +14,13 @@ import org.skife.jdbi.v2.sqlobject.customizers.RegisterMapper;
 import org.skife.jdbi.v2.tweak.ResultSetMapper;
 
 import com.codepurls.mailytics.data.core.Mailbox;
-import com.codepurls.mailytics.data.core.Mailbox.Status;
+import com.codepurls.mailytics.data.core.Mailbox.MailboxStatus;
 import com.codepurls.mailytics.data.core.Mailbox.Type;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.dao.UserDao.MailboxMapper;
 import com.codepurls.mailytics.service.dao.UserDao.UserMapper;
 
-@RegisterMapper({UserMapper.class, MailboxMapper.class})
+@RegisterMapper({ UserMapper.class, MailboxMapper.class })
 public interface UserDao {
   public static class UserMapper implements ResultSetMapper<User> {
     public User map(int index, ResultSet r, StatementContext ctx) throws SQLException {
@@ -47,13 +47,10 @@ public interface UserDao {
       mb.totalMails = r.getInt("num_messages");
       mb.lastFolderRead = r.getInt("last_folder_read");
       mb.lastMessageRead = r.getInt("last_message_read");
-      mb.status = Status.valueOf(r.getString("status"));
+      mb.status = MailboxStatus.valueOf(r.getString("status"));
       return mb;
     }
   }
-
-  @SqlUpdate("insert into something (id, name) values (:id, :name)")
-  void insert(@Bind("id") int id, @Bind("name") String name);
 
   @SqlUpdate("INSERT INTO mailbox (name, type, location, userid) VALUES (:mb.name, :mb.type, :mb.mailLocation, :mb.userId) ")
   @GetGeneratedKeys
@@ -62,9 +59,15 @@ public interface UserDao {
   @SqlQuery("SELECT * FROM user WHERE id = :id AND deleted = false")
   User findById(@Bind("id") int uid);
 
+  @SqlQuery("SELECT * FROM user WHERE user_name = :user_name AND deleted = false")
+  User findByUsername(@Bind("user_name") String user);
+
   @SqlQuery("SELECT * FROM mailbox WHERE id = :id")
   Mailbox findMailboxById(@Bind("id") int id);
 
   @SqlQuery("SELECT * FROM mailbox WHERE userId = :userId")
   Collection<Mailbox> getMailboxes(@Bind("userId") int userId);
+
+  @SqlUpdate("UPDATE mailbox SET status = :status WHERE id = :id")
+  void updateMailboxStatus(@Bind("id") int id, @Bind("status") String status);
 }

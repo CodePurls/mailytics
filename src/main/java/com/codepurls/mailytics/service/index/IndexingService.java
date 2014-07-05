@@ -4,6 +4,7 @@ import io.dropwizard.lifecycle.Managed;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -29,6 +30,7 @@ import com.codepurls.mailytics.config.Config.IndexConfig;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.MailFolder;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.data.core.Mailbox.MailboxStatus;
 import com.codepurls.mailytics.service.ingest.MailReader.MailVisitor;
 import com.codepurls.mailytics.service.ingest.MailReaderContext;
 import com.codepurls.mailytics.service.security.UserService;
@@ -73,12 +75,33 @@ public class IndexingService implements Managed {
             break;
           }
           Mailbox mb = tuple.getKey();
-          IndexWriter writer = getWriterFor(mb);
-          writer.addDocument(MailIndexer.prepareDocument(mb, tuple.getValue()));
+          Mail mail = tuple.getValue();
+          if (mail == null) {
+            finalizeIndex(mb);
+          } else {
+            IndexWriter writer = getWriterFor(mb);
+            writer.addDocument(MailIndexer.prepareDocument(mb, mail));
+          }
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
           break;
         }
+      }
+    }
+
+    private void finalizeIndex(Mailbox mb) {
+      LOG.info("Received end of mailbox, will mark as indexed.");
+      IndexWriter writer = userIndices.remove(mb);
+      try {
+        LOG.info("Commiting index for mailbox '{}'", mb.name);
+        writer.commit();
+        LOG.info("Closing index for mailbox '{}'", mb.name);
+        writer.close(true);
+        LOG.info("Mailbox '{}' indexed", mb.name);
+        mb.closeReader();
+        userService.updateMailboxStatus(mb, MailboxStatus.INDEXED);
+      } catch (IOException e) {
+        LOG.error("Error commiting index for mailbox {}", mb.name, e);
       }
     }
   }
@@ -104,6 +127,7 @@ public class IndexingService implements Managed {
       LOG.info("Will index new mailbox: {}", mb.name);
       AtomicInteger mails = new AtomicInteger();
       AtomicInteger folders = new AtomicInteger();
+      userService.updateMailboxStatus(mb, MailboxStatus.INDEXING);
       mb.visit(new MailReaderContext(), new MailVisitor() {
         public void onNewMail(Mail mail) {
           mails.incrementAndGet();
@@ -121,22 +145,11 @@ public class IndexingService implements Managed {
         }
 
         public void onError(Throwable t, MailFolder folder, Mail mail) {
-          LOG.error("Error reading mails, mailbox: {}, folder: {}, mail: {}", mb.name, folder.getName(), mail);
+          LOG.error("Error reading mails, mailbox: {}, folder: {}, mail: {}", mb.name, folder.getName(), mail, t);
         }
       });
       LOG.info("Done visiting mailbox '{}', visited {} folders and {} mails", mb.name, folders.get(), mails.get());
-      try {
-        IndexWriter writer = getWriterFor(mb);
-        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(5));
-        LOG.info("Commiting index for mailbox '{}'", mb.name);
-        writer.commit();
-        LOG.info("Closing index for mailbox '{}'", mb.name);
-        writer.close(true);
-        userIndices.remove(mb);
-        LOG.info("Mailbox '{}' indexed", mb.name);
-      } catch (IOException e) {
-        LOG.error("Error commiting index for mailbox {}", mb.name, e);
-      }
+      mailQueue.put(Tuple.of(mb, null));
     }
   }
 
@@ -161,11 +174,15 @@ public class IndexingService implements Managed {
   }
 
   public static Directory getIndexDir(IndexConfig config, Mailbox mb) throws IOException {
+    return FSDirectory.open(getIndexDirectory(config, mb));
+  }
+  
+  public static File getIndexDirectory(IndexConfig config, Mailbox mb) {
     String name = mb.name.toLowerCase();
     name = name.replaceAll("\\W+", "_");
-    return FSDirectory.open(new File(config.location, mb.user.username.toLowerCase() + File.separatorChar + name));
+    return new File(config.location, mb.user.username.toLowerCase() + File.separatorChar + name);
   }
-
+  
   protected IndexWriter getWriterFor(Mailbox mb) throws IOException {
     IndexWriter writer = userIndices.get(mb);
     if (writer == null) {
@@ -216,7 +233,18 @@ public class IndexingService implements Managed {
   }
 
   public void index(Mailbox mb) {
+    LOG.info("Scheduling indexing of mailbox {}-{}", mb.id, mb.name);
     mboxQueue.add(mb);
+  }
+
+  public void reindex(Mailbox mb) throws IOException {
+    LOG.info("Re-indexing mailbox {}-{}", mb.id, mb.name);
+    File[] files = getIndexDirectory(index,mb).listFiles();
+    LOG.info("Will delete existing index with {} files", files.length);
+    for (File f : files) {
+      Files.delete(f.toPath());
+    }
+    index(mb);
   }
 
   public IndexConfig getIndex() {
@@ -234,4 +262,5 @@ public class IndexingService implements Managed {
   public Analyzer getAnalyzer() {
     return analyzer;
   }
+
 }

@@ -1,11 +1,14 @@
 package com.codepurls.mailytics.data.core;
 
+import java.io.IOException;
+
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.ingest.MBoxReader;
+import com.codepurls.mailytics.service.ingest.MailReader;
 import com.codepurls.mailytics.service.ingest.MailReader.MailVisitor;
 import com.codepurls.mailytics.service.ingest.MailReaderContext;
 import com.codepurls.mailytics.service.ingest.PSTReader;
@@ -21,33 +24,36 @@ public class Mailbox {
     public Integer port;
   }
 
-  public enum Status {
+  public enum MailboxStatus {
     NEW, INDEXING, INDEXED, ERROR
   }
 
-  public int    id;
-  public long   size;
-  public int    totalFolders, totalMails;
-  public int    lastFolderRead, lastMessageRead;
-  public Status status;
+  public int                   id;
+  public long                  size;
+  public int                   totalFolders, totalMails;
+  public int                   lastFolderRead, lastMessageRead;
+  public MailboxStatus                status;
 
   @NotEmpty(message = "is required")
-  public String name;
+  public String                name;
   @NotNull(message = "is required")
-  public Type   type;
+  public Type                  type;
   @NotEmpty(message = "is required")
-  public String mailLocation;
+  public String                mailLocation;
 
-  public User   user;
-  public String fullName, description, email, username, password;
-  public Server incomingServer, outgoingServer;
+  public User                  user;
+  public String                fullName, description, email, username, password;
+  public Server                incomingServer, outgoingServer;
+
+  private transient MailReader reader;
 
   public void visit(MailReaderContext context, MailVisitor visitor) {
     if (type == Type.PST) {
-      new PSTReader().visit(context, getMailLocation(), visitor);
+      reader = new PSTReader();
     } else if (type == Type.MBOX) {
-      new MBoxReader().visit(context, getMailLocation(), visitor);
+      reader = new MBoxReader();
     }
+    reader.visit(context, getMailLocation(), visitor);
   }
 
   public String getName() {
@@ -95,5 +101,10 @@ public class Mailbox {
       if (other.username != null) return false;
     } else if (!username.equals(other.username)) return false;
     return true;
+  }
+
+  public void closeReader() throws IOException {
+    if(this.reader != null)
+      this.reader.close();
   }
 }

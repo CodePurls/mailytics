@@ -17,10 +17,11 @@ import com.pff.PSTMessage;
 
 public class PSTReader implements MailReader {
   public static final Logger LOG = LoggerFactory.getLogger(PSTReader.class);
+  private PSTFile pstFile;
 
   public void visit(MailReaderContext context, File file, MailVisitor visitor) {
     try {
-      PSTFile pstFile = new PSTFile(file);
+      pstFile = new PSTFile(file);
 //      boolean passwordProtected = pstFile.getMessageStore().isPasswordProtected();
 //      if (passwordProtected) {
 //        LOG.warn("File {} is password protected, parser will not work");
@@ -58,8 +59,12 @@ public class PSTReader implements MailReader {
       }
 
     } catch (PSTException | IOException e) {
-      throw new RuntimeException(e);
+      visitor.onError(e, folder, null);
     }
+  }
+
+  public void close() throws IOException {
+    pstFile.getFileHandle().close();
   }
 
 }

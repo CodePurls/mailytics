@@ -28,7 +28,7 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
   }
 
   public Map<String, String> getHeaders() {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 1; i++)
       try {
         return lazyParse(msg.getTransportMessageHeaders());
       } catch (Exception e) {
@@ -38,7 +38,7 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
   }
 
   public String getBody() {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 1; i++)
       try {
         return msg.getBody();
       } catch (Exception e) {

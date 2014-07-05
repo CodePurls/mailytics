@@ -93,7 +93,9 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
   
   public Date getDate() {
     try {
-      return mail.getReceivedDate();
+      Date receivedDate = mail.getReceivedDate();
+      Date sentDate = mail.getSentDate();
+      return sentDate == null ? receivedDate : sentDate;
     } catch (MessagingException e) {
       return new Date();
     }

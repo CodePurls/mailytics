@@ -3,7 +3,6 @@ package com.codepurls.mailytics.service.search;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,6 +20,7 @@ import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codepurls.mailytics.api.v1.transfer.Page;
 import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.data.security.User;
@@ -40,12 +40,12 @@ public class SearchService {
     this.userService = userService;
   }
 
-  public List<RESTMail> search(User user, String query, int page, int size) {
+  public Page<RESTMail> search(User user, String query, int page, int size) {
     List<Integer> mbIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
     return search(user, mbIds, query, page, size);
   }
 
-  public List<RESTMail> search(User user, List<Integer> mbIds, String query, int page, int size) {
+  public Page<RESTMail> search(User user, List<Integer> mbIds, String query, int page, int size) {
     QueryParser qp = newQueryParser();
     try {
       Query q = StringUtils.isBlank(query) ? new MatchAllDocsQuery() : qp.parse(query);
@@ -54,19 +54,19 @@ public class SearchService {
       TopDocs topDocs = searcher.search(q, size);
       int totalHits = topDocs.totalHits;
       List<RESTMail> results = new ArrayList<>(Math.min(totalHits, size));
-      if(totalHits > 0) {
+      if (totalHits > 0) {
         for (ScoreDoc sd : topDocs.scoreDocs) {
           Document match = searcher.doc(sd.doc);
           results.add(MailIndexer.prepareTransferObject(match));
         }
       }
-      return results;
+      return Page.of(results, totalHits, page);
     } catch (ParseException e) {
       LOG.warn("Error parsing query {}", query, e);
     } catch (IOException e) {
       LOG.error("Error searching mailboxes with query {} ", query, e);
     }
-    return Collections.emptyList();
+    return Page.empty();
   }
 
   private IndexReader getReader(User user, List<Integer> mbIds) {
@@ -75,7 +75,7 @@ public class SearchService {
       try {
         return DirectoryReader.open(indexingService.getIndexDir(mb));
       } catch (Exception e) {
-        LOG.error("Error retrieving dir for mailbox : {}", mb.name , e);
+        LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
         return null;
       }
     }).filter((r) -> r != null).collect(Collectors.toList());
@@ -85,6 +85,5 @@ public class SearchService {
   private QueryParser newQueryParser() {
     return new QueryParser(indexingService.getVersion(), MailSchema.contents.name(), indexingService.getAnalyzer());
   }
-
 
 }
