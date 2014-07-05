@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +90,15 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
     }
     return Collections.emptyList();
   }
-
+  
+  public Date getDate() {
+    try {
+      return mail.getReceivedDate();
+    } catch (MessagingException e) {
+      return new Date();
+    }
+  }
+  
   private List<Attachment> getAttachments(BodyPart part) throws Exception {
     List<Attachment> result = new ArrayList<>();
     Object content = part.getContent();

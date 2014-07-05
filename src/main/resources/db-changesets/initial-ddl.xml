@@ -59,7 +59,7 @@
     <constraints primaryKey="true" primaryKeyName="PK_MBOX_ID" />
    </column>
    <column name="name" type="varchar(512)">
-    <constraints nullable="false" />
+    <constraints nullable="false" unique="true" uniqueConstraintName="UK_MAILBOX_NAME"/>
    </column>
    <column name="type" type="varchar(16)">
     <constraints nullable="false" />

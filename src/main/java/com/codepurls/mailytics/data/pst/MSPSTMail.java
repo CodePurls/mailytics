@@ -2,6 +2,7 @@ package com.codepurls.mailytics.data.pst;
 
 import java.io.IOException;
 import java.util.AbstractList;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,11 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
   public Map<String, String> getHeaders() {
     return lazyParse(msg.getTransportMessageHeaders());
   }
-
+  
+  public Date getDate() {
+    return msg.getMessageDeliveryTime();
+  }
+  
   private Map<String, String> lazyParse(String transportMessageHeaders) {
     if (this.parsedHeaders != null) return parsedHeaders;
     Scanner scanner = new Scanner(transportMessageHeaders);
