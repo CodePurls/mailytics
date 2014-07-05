@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -118,7 +119,7 @@ public class IndexingService implements Managed {
     },
     subject {
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
+        return new Field[] { new TextField(name(), "", Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
@@ -129,7 +130,7 @@ public class IndexingService implements Managed {
     },
     contents {
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
+        return new Field[] { new TextField(name(), "", Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
@@ -168,7 +169,11 @@ public class IndexingService implements Managed {
   public static Document prepareDocument(Mailbox mb, Mail value) {
     Document document = TL_DOC.get();
     for (MailSchema mf : MailSchema.values()) {
-      mf.setFieldValues(document, value);
+      try {
+        mf.setFieldValues(document, value);
+      } catch (Exception e) {
+        LOG.error("Error setting field value {}, will ignore", mf,e);
+      }
     }
     return document;
   }
@@ -243,15 +248,15 @@ public class IndexingService implements Managed {
         }
 
         public void onError(Throwable t, MailFolder folder, Mail mail) {
-          LOG.error("Error reading mails, mailbox: {}, folder: {}, mail: {}", mb.name, folder.getName(), mail.getHeaders());
+          LOG.error("Error reading mails, mailbox: {}, folder: {}, mail: {}", mb.name, folder.getName(), mail);
         }
       });
       LOG.info("Done visiting mailbox '{}', visited {} folders and {} mails", mb.name, folders.get(), mails.get());
       try {
         IndexWriter writer = getWriterFor(mb);
+        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(5));
         LOG.info("Commiting index for mailbox '{}'", mb.name);
         writer.commit();
-        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(5));
         LOG.info("Closing index for mailbox '{}'", mb.name);
         writer.close(true);
         userIndices.remove(writer);

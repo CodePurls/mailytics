@@ -21,6 +21,10 @@ public class PSTReader implements MailReader {
   public void visit(MailReaderContext context, File file, MailVisitor visitor) {
     try {
       PSTFile pstFile = new PSTFile(file);
+//      boolean passwordProtected = pstFile.getMessageStore().isPasswordProtected();
+//      if (passwordProtected) {
+//        LOG.warn("File {} is password protected, parser will not work");
+//      }
       PSTFolder rootFolder = pstFile.getRootFolder();
       walk(null, rootFolder, visitor);
     } catch (PSTException | IOException e) {
@@ -44,7 +48,13 @@ public class PSTReader implements MailReader {
         }
       }
       if (f.hasSubfolders()) {
-        f.getSubFolders().forEach((cf) -> walk(folder, cf, visitor));
+        f.getSubFolders().forEach((cf) -> {
+          try {
+            walk(folder, cf, visitor);
+          } catch (Exception e) {
+            visitor.onError(e, folder, null);
+          }
+        });
       }
 
     } catch (PSTException | IOException e) {

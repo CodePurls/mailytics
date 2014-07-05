@@ -2,11 +2,15 @@ package com.codepurls.mailytics.data.pst;
 
 import java.io.IOException;
 import java.util.AbstractList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.data.core.AbstractMail;
 import com.codepurls.mailytics.data.core.Attachment;
@@ -14,6 +18,7 @@ import com.pff.PSTException;
 import com.pff.PSTMessage;
 
 public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
+  private static final Logger LOG = LoggerFactory.getLogger("MSPSTMail");
   private final PSTMessage    msg;
   private Map<String, String> parsedHeaders;
 
@@ -23,13 +28,33 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
   }
 
   public Map<String, String> getHeaders() {
-    return lazyParse(msg.getTransportMessageHeaders());
+    for (int i = 0; i < 3; i++)
+      try {
+        return lazyParse(msg.getTransportMessageHeaders());
+      } catch (Exception e) {
+        LOG.warn("Error parsing headers for message, attempt {}", i, e);
+      }
+    return Collections.emptyMap();
   }
-  
+
+  public String getBody() {
+    for (int i = 0; i < 3; i++)
+      try {
+        return msg.getBody();
+      } catch (Exception e) {
+        LOG.warn("Error parsing message, attempt {}", i, e);
+      }
+    return "";
+  }
+
+  public String getMessageId() {
+    return msg.getInternetMessageId();
+  }
+
   public Date getDate() {
     return msg.getMessageDeliveryTime();
   }
-  
+
   private Map<String, String> lazyParse(String transportMessageHeaders) {
     if (this.parsedHeaders != null) return parsedHeaders;
     Scanner scanner = new Scanner(transportMessageHeaders);
@@ -54,10 +79,6 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
     this.parsedHeaders = headers;
     scanner.close();
     return headers;
-  }
-
-  public String getBody() {
-    return msg.getBody();
   }
 
   public static class AttachmentList extends AbstractList<Attachment> {
