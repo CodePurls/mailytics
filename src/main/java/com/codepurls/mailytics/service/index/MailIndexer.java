@@ -2,6 +2,8 @@ package com.codepurls.mailytics.service.index;
 
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 
+import java.util.Date;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -13,6 +15,7 @@ import org.apache.lucene.index.IndexableField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
 
@@ -28,7 +31,12 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getMessageId()));
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.messageId = doc.get(name());
+      }
     },
+    
     folder {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
@@ -39,7 +47,12 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getFolder().getName()));
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.folder = doc.get(name());
+      }
     },
+    
     date {
       public Field[] getFields() {
         return new Field[] { new LongField(name(), 0, Store.YES) };
@@ -50,7 +63,12 @@ public class MailIndexer {
           ((LongField) f).setLongValue(mail.getDate().getTime());
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.date = new Date(doc.getField(name()).numericValue().longValue());
+      }
     },
+    
     from {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
@@ -61,7 +79,12 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getFrom()));
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.from = doc.get(name());
+      }
     },
+    
     to {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
@@ -72,7 +95,12 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getTo()));
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.to = doc.get(name());
+      }
     },
+    
     subject {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
@@ -83,7 +111,12 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getSubject()));
         }
       }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.subject = doc.get(name());
+      }
     },
+    
     contents {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
@@ -93,6 +126,10 @@ public class MailIndexer {
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setStringValue(orEmpty(mail.getBody()));
         }
+      }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.body = doc.get(name());
       }
     },
 
@@ -106,11 +143,18 @@ public class MailIndexer {
           ((Field) f).setIntValue(mail.getAttachments().size());
         }
       }
-    };
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.attachmentCount = doc.getField(name()).numericValue().intValue();
+      }
+    }
+
+    ;
     public abstract Field[] getFields();
 
     public abstract void setFieldValues(Document doc, Mail mail);
 
+    public abstract void retrieveValue(RESTMail mail, Document doc);
   }
 
   private static final ThreadLocal<Document> TL_DOC = ThreadLocal.withInitial(() -> createDocument());
@@ -136,6 +180,14 @@ public class MailIndexer {
       }
     }
     return document;
+  }
+
+  public static RESTMail prepareTransferObject(Document doc) {
+    RESTMail mail = new RESTMail();
+    for (MailSchema mf : MailSchema.values()) {
+      mf.retrieveValue(mail, doc);
+    }
+    return mail;
   }
 
 }

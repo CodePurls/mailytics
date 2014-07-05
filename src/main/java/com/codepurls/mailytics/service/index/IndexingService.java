@@ -132,7 +132,7 @@ public class IndexingService implements Managed {
         writer.commit();
         LOG.info("Closing index for mailbox '{}'", mb.name);
         writer.close(true);
-        userIndices.remove(writer);
+        userIndices.remove(mb);
         LOG.info("Mailbox '{}' indexed", mb.name);
       } catch (IOException e) {
         LOG.error("Error commiting index for mailbox {}", mb.name, e);

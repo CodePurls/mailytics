@@ -69,7 +69,9 @@ public class UserService implements Managed {
   }
 
   public Collection<Mailbox> getMailboxes(User user) {
-    return userDao.getMailboxes(user.id);
+    Collection<Mailbox> mailboxes = userDao.getMailboxes(user.id);
+    mailboxes.forEach((mb) -> mb.user = user);
+    return mailboxes;
   }
 
   public Mailbox getMailbox(User user, int mailboxId) {

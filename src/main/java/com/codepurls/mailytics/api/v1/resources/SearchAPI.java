@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
@@ -34,7 +35,8 @@ public class SearchAPI {
   }
 
   @GET
-  public Response searchMBox(@Auth User user, @QueryParam(PARAM_QUERY) String query, @QueryParam("mboxes") List<Integer> mbIds,
+  @Path("mailbox")
+  public Response searchMBox(@Auth User user, @QueryParam(PARAM_QUERY) String query, @QueryParam("id") List<Integer> mbIds,
       @DefaultValue(PARAM_DEFAULT_SIZE) @QueryParam(PARAM_SIZE) int size, @DefaultValue(PARAM_DEFAULT_PAGE) @QueryParam(PARAM_PAGE) int page) {
     return Response.ok(searchService.search(user, mbIds, query, page, size)).build();
   }
