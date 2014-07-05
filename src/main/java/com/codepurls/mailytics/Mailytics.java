@@ -18,6 +18,7 @@ import com.codepurls.mailytics.service.EventLogService;
 import com.codepurls.mailytics.service.dao.EventLogDao;
 import com.codepurls.mailytics.service.dao.UserDao;
 import com.codepurls.mailytics.service.index.IndexingService;
+import com.codepurls.mailytics.service.search.SearchService;
 import com.codepurls.mailytics.service.security.UserService;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
@@ -43,16 +44,16 @@ public class Mailytics extends Application<Config> {
     EventLogService eventLogService = new EventLogService(dbi.onDemand(EventLogDao.class));
     UserService userService = new UserService(eventLogService, dbi.onDemand(UserDao.class));
     IndexingService indexingService = new IndexingService(cfg.index, userService);
-
+    SearchService searchService = new SearchService(indexingService, userService);
     env.lifecycle().manage(indexingService);
     configureJersey(env);
-    configureAPI(cfg, env, indexingService);
+    configureAPI(cfg, env, indexingService, searchService);
 
     instance = this;
   }
 
-  private void configureAPI(Config cfg, Environment env, IndexingService indexingService) {
-    env.jersey().register(new V1(indexingService));
+  private void configureAPI(Config cfg, Environment env, IndexingService indexingService, SearchService searchService) {
+    env.jersey().register(new V1(indexingService, searchService));
     env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(indexingService.getUserService()), "mailytics.com"));
     env.servlets().addFilter("CORSFilter", new CORSFilter(cfg.cors));
   }

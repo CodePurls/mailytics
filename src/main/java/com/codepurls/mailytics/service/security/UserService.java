@@ -2,7 +2,9 @@ package com.codepurls.mailytics.service.security;
 
 import io.dropwizard.lifecycle.Managed;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +79,16 @@ public class UserService implements Managed {
         return mailbox;
     }
     return null;
+  }
+
+  public Collection<Mailbox> getMailboxes(User user, List<Integer> mbIds) {
+    Collection<Mailbox> mailboxes = getMailboxes(user);
+    List<Mailbox> toReturn = new ArrayList<Mailbox>(mailboxes.size() - mbIds.size());
+    for (Mailbox mailbox : mailboxes) {
+      if(mbIds.contains(mailbox.id))
+        toReturn.add(mailbox);
+    }
+    return toReturn;
   }
 
 }

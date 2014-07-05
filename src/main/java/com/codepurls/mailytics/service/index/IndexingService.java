@@ -1,6 +1,5 @@
 package com.codepurls.mailytics.service.index;
 
-import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 import io.dropwizard.lifecycle.Managed;
 
 import java.io.File;
@@ -18,16 +17,8 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.IntField;
-import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
@@ -59,124 +50,6 @@ public class IndexingService implements Managed {
   private final Analyzer                            analyzer;
   private final Thread                              mailboxVisitor;
   private final Object                              LOCK        = new Object();
-  private static final ThreadLocal<Document>        TL_DOC      = ThreadLocal.withInitial(() -> createDocument());
-
-  public enum MailSchema {
-    id {
-      public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getMessageId()));
-        }
-      }
-    },
-    folder {
-      public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getFolder().getName()));
-        }
-      }
-    },
-    date {
-      public Field[] getFields() {
-        return new Field[] { new LongField(name(), 0, Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((LongField) f).setLongValue(mail.getDate().getTime());
-        }
-      }
-    },
-    from {
-      public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getFrom()));
-        }
-      }
-    },
-    to {
-      public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getTo()));
-        }
-      }
-    },
-    subject {
-      public Field[] getFields() {
-        return new Field[] { new TextField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getSubject()));
-        }
-      }
-    },
-    contents {
-      public Field[] getFields() {
-        return new Field[] { new TextField(name(), "", Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getBody()));
-        }
-      }
-    },
-
-    attachment_count {
-      public Field[] getFields() {
-        return new Field[] { new IntField(name(), 0, Store.YES) };
-      }
-
-      public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setIntValue(mail.getAttachments().size());
-        }
-      }
-    };
-    public abstract Field[] getFields();
-
-    public abstract void setFieldValues(Document doc, Mail mail);
-  }
-
-  public static Document createDocument() {
-    Document doc = new Document();
-    for (MailSchema sf : MailSchema.values()) {
-      for (IndexableField indexableField : sf.getFields()) {
-        doc.add(indexableField);
-      }
-    }
-    return doc;
-  }
-
-  public static Document prepareDocument(Mailbox mb, Mail value) {
-    Document document = TL_DOC.get();
-    for (MailSchema mf : MailSchema.values()) {
-      try {
-        mf.setFieldValues(document, value);
-      } catch (Exception e) {
-        LOG.error("Error setting field value {}, will ignore", mf,e);
-      }
-    }
-    return document;
-  }
 
   public class IndexWorker implements Callable<AtomicLong> {
     private final AtomicLong counter = new AtomicLong();
@@ -201,7 +74,7 @@ public class IndexingService implements Managed {
           }
           Mailbox mb = tuple.getKey();
           IndexWriter writer = getWriterFor(mb);
-          writer.addDocument(prepareDocument(mb, tuple.getValue()));
+          writer.addDocument(MailIndexer.prepareDocument(mb, tuple.getValue()));
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
           break;
@@ -283,10 +156,14 @@ public class IndexingService implements Managed {
     return cfg;
   }
 
-  public Directory getWriterDir(Mailbox mb) throws IOException {
+  public Directory getIndexDir(Mailbox mb) throws IOException {
+    return getIndexDir(index, mb);
+  }
+
+  public static Directory getIndexDir(IndexConfig config, Mailbox mb) throws IOException {
     String name = mb.name.toLowerCase();
     name = name.replaceAll("\\W+", "_");
-    return FSDirectory.open(new File(index.location, mb.user.username.toLowerCase() + File.separatorChar + name));
+    return FSDirectory.open(new File(config.location, mb.user.username.toLowerCase() + File.separatorChar + name));
   }
 
   protected IndexWriter getWriterFor(Mailbox mb) throws IOException {
@@ -295,7 +172,7 @@ public class IndexingService implements Managed {
       synchronized (LOCK) {
         writer = userIndices.get(mb);
         if (writer == null) {
-          writer = new IndexWriter(getWriterDir(mb), getWriterConfig());
+          writer = new IndexWriter(getIndexDir(this.index, mb), getWriterConfig());
           userIndices.put(mb, writer);
         }
       }
@@ -348,5 +225,13 @@ public class IndexingService implements Managed {
 
   public UserService getUserService() {
     return userService;
+  }
+
+  public Version getVersion() {
+    return version;
+  }
+
+  public Analyzer getAnalyzer() {
+    return analyzer;
   }
 }

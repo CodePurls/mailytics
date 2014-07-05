@@ -7,4 +7,7 @@ public class StringUtils {
   public static String orEmpty(String str) {
     return str == null || str.isEmpty() ? "" : str;
   }
+  public static boolean isBlank(String query) {
+    return orEmpty(query).equals("");
+  }
 }

@@ -24,7 +24,7 @@ import com.codepurls.mailytics.service.security.UserService;
 public class ManagementAPI {
 
   private final UserService userService;
-  private IndexingService indexingService;
+  private final IndexingService indexingService;
 
   public ManagementAPI(UserService userService, IndexingService indexingService) {
     this.userService = userService;
