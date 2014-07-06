@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.utils.RFC822Constants;
 import com.codepurls.mailytics.utils.Tuple;
 
 public class MailIndexer {
@@ -35,15 +36,43 @@ public class MailIndexer {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
       }
-
+      
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setStringValue(orEmpty(mail.getMessageId()));
         }
       }
-
+      
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.messageId = doc.get(name());
+      }
+    },
+    organization {
+      public Field[] getFields() {
+        return new Field[] { new StringField(name(), "", Store.YES) };
+      }
+      
+      public void setFieldValues(Document doc, Mail mail) {
+        for (IndexableField f : doc.getFields(name())) {
+          ((Field) f).setStringValue(orEmpty(mail.getHeaders().get(RFC822Constants.ORGANIZATION)));
+        }
+      }
+      
+      public void retrieveValue(RESTMail mail, Document doc) {
+      }
+    },
+    content_type {
+      public Field[] getFields() {
+        return new Field[] { new StringField(name(), "", Store.YES) };
+      }
+
+      public void setFieldValues(Document doc, Mail mail) {
+        for (IndexableField f : doc.getFields(name())) {
+          ((Field) f).setStringValue(orEmpty(mail.getHeaders().get(RFC822Constants.CONTENT_TYPE)));
+        }
+      }
+      
+      public void retrieveValue(RESTMail mail, Document doc) {
       }
     },
 
@@ -70,7 +99,12 @@ public class MailIndexer {
 
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setLongValue(mail.getDate().getTime());
+          Date date = mail.getDate();
+          if(date == null) {
+            LOG.warn("Null date for mail: {}, folder: {} ", mail.getSubject(), mail.getFolder().getName());
+            date = new Date(0);
+          }
+          ((Field) f).setLongValue(date.getTime());
         }
       }
 
@@ -81,7 +115,7 @@ public class MailIndexer {
 
     from {
       public Field[] getFields() {
-        return new Field[] { new TextField(name(), "", Store.YES), new SortedDocValuesField(name(), new BytesRef("")) };
+        return new Field[] { new StringField(name(), "", Store.NO), new TextField(name(), "", Store.YES), new SortedDocValuesField(name(), new BytesRef("")) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
@@ -179,8 +213,11 @@ public class MailIndexer {
   private static final Logger                LOG    = LoggerFactory.getLogger("mail-indexer");
 
   public static void setValue(Field f, String value) {
-    if (f instanceof SortedDocValuesField) f.setBytesValue(new BytesRef(value));
-    else f.setStringValue(value);
+    if (f instanceof SortedDocValuesField) {
+      f.setBytesValue(new BytesRef(value.substring(0, Math.min(32766, value.length()))));
+    } else {
+      f.setStringValue(value);
+    }
   }
 
   public static Document createDocument() {

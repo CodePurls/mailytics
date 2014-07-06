@@ -1,6 +1,5 @@
 package com.codepurls.mailytics.utils;
 
-
 public class RFC822Constants {
 
   public static final String RETURN_PATH               = "Return-Path";
@@ -20,5 +19,6 @@ public class RFC822Constants {
   public static final String CONTENT_TRANSFER_ENCODING = "Content-Transfer-Encoding";
   public static final String CONTENT_MD5               = "Content-MD5";
   public static final String CONTENT_LENGTH            = "Content-Length";
-  
+  public static final String ORGANIZATION              = "Organization";
+
 }
