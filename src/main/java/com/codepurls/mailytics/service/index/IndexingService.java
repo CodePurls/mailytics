@@ -176,13 +176,13 @@ public class IndexingService implements Managed {
   public static Directory getIndexDir(IndexConfig config, Mailbox mb) throws IOException {
     return FSDirectory.open(getIndexDirectory(config, mb));
   }
-  
+
   public static File getIndexDirectory(IndexConfig config, Mailbox mb) {
     String name = mb.name.toLowerCase();
     name = name.replaceAll("\\W+", "_");
     return new File(config.location, mb.user.username.toLowerCase() + File.separatorChar + name);
   }
-  
+
   protected IndexWriter getWriterFor(Mailbox mb) throws IOException {
     IndexWriter writer = userIndices.get(mb);
     if (writer == null) {
@@ -239,10 +239,12 @@ public class IndexingService implements Managed {
 
   public void reindex(Mailbox mb) throws IOException {
     LOG.info("Re-indexing mailbox {}-{}", mb.id, mb.name);
-    File[] files = getIndexDirectory(index,mb).listFiles();
-    LOG.info("Will delete existing index with {} files", files.length);
-    for (File f : files) {
-      Files.delete(f.toPath());
+    File[] files = getIndexDirectory(index, mb).listFiles();
+    if (files != null) {
+      LOG.info("Will delete existing index with {} files", files.length);
+      for (File f : files) {
+        Files.delete(f.toPath());
+      }
     }
     index(mb);
   }

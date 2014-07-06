@@ -56,15 +56,16 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
   }
 
   private Map<String, String> lazyParse(String transportMessageHeaders) {
-    if (this.parsedHeaders != null) return parsedHeaders;
+    if (this.parsedHeaders != null && !this.parsedHeaders.isEmpty()) return parsedHeaders;
     Scanner scanner = new Scanner(transportMessageHeaders);
     Map<String, String> headers = new LinkedHashMap<>();
     String prev = "";
     while (scanner.hasNextLine()) {
       String line = scanner.nextLine();
+      if(line.startsWith("Microsoft Mail Internet Headers Version")) continue;
       if (line.isEmpty()) continue;
       int colon = line.indexOf(':');
-      boolean filler = line.startsWith(" ");
+      boolean filler = line.startsWith(" ") || line.startsWith("\t");
       String key, value;
       if (colon == -1 || filler) {
         key = prev;
