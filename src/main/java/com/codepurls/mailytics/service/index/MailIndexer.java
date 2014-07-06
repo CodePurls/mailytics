@@ -207,15 +207,18 @@ public class MailIndexer {
         LOG.warn("Unknown header: {} -> {}", name, value);
         continue;
       }
-
-      boolean found = false;
-      for (IndexableField f : document.getFields(name)) {
-        setValue((Field) f, value);
-        found = true;
-      }
-      if (!found) {
-        document.add(new TextField(name, value, Store.YES));
-        document.add(new SortedDocValuesField(name, new BytesRef(value)));
+      try {
+        boolean found = false;
+        for (IndexableField f : document.getFields(name)) {
+          setValue((Field) f, value);
+          found = true;
+        }
+        if (!found) {
+          document.add(new TextField(name, value, Store.YES));
+          document.add(new SortedDocValuesField(name, new BytesRef(value)));
+        }
+      } catch (Exception e) {
+        LOG.error("Error indexing header: {} -> {}", name, value, e);
       }
     }
     return document;
