@@ -1,12 +1,11 @@
 package com.codepurls.mailytics.service.search;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
@@ -15,7 +14,6 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import com.codepurls.mailytics.api.v1.transfer.Page;
 import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.index.IndexingService;
 import com.codepurls.mailytics.service.index.MailIndexer;
@@ -40,31 +39,32 @@ public class SearchService {
     this.userService = userService;
   }
 
-  public Page<RESTMail> search(User user, String query, int page, int size) {
-    List<Integer> mbIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
-    return search(user, mbIds, query, page, size);
-  }
-
-  public Page<RESTMail> search(User user, List<Integer> mbIds, String query, int page, int size) {
+  public Page<RESTMail> search(User user, Request req) {
+    if (req.mailboxIds == null || req.mailboxIds.isEmpty()) {
+      req.mailboxIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
+    }
     QueryParser qp = newQueryParser();
     try {
-      Query q = StringUtils.isBlank(query) ? new MatchAllDocsQuery() : qp.parse(query);
-      IndexReader reader = getReader(user, mbIds);
+      Query q = StringUtils.isBlank(req.query) ? new MatchAllDocsQuery() : qp.parse(req.query);
+      IndexReader reader = getReader(user, req.mailboxIds);
       IndexSearcher searcher = new IndexSearcher(reader);
-      TopDocs topDocs = searcher.search(q, size);
+      TopDocs topDocs = searcher.search(q, req.pageSize);
       int totalHits = topDocs.totalHits;
-      List<RESTMail> results = new ArrayList<>(Math.min(totalHits, size));
       if (totalHits > 0) {
-        for (ScoreDoc sd : topDocs.scoreDocs) {
-          Document match = searcher.doc(sd.doc);
-          results.add(MailIndexer.prepareTransferObject(match));
-        }
+        List<RESTMail> results = Arrays.stream(topDocs.scoreDocs).map((sd) -> {
+          try {
+            return MailIndexer.prepareTransferObject(searcher.doc(sd.doc));
+          } catch (IOException e) {
+            LOG.error("Error retrieving mail", e);
+            return null;
+          }
+        }).filter((x) -> x != null).collect(Collectors.toList());
+        return Page.of(results, totalHits, req.pageNum);
       }
-      return Page.of(results, totalHits, page);
     } catch (ParseException e) {
-      LOG.warn("Error parsing query {}", query, e);
+      LOG.warn("Error parsing query {}", req.query, e);
     } catch (IOException e) {
-      LOG.error("Error searching mailboxes with query {} ", query, e);
+      LOG.error("Error searching mailboxes with query {} ", req.query, e);
     }
     return Page.empty();
   }
@@ -79,6 +79,7 @@ public class SearchService {
         return null;
       }
     }).filter((r) -> r != null).collect(Collectors.toList());
+    //TODO: Close readers to prevent resource leak.
     return new MultiReader(list.toArray(new IndexReader[list.size()]), false);
   }
 

@@ -2,10 +2,13 @@ package com.codepurls.mailytics.service.index;
 
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -24,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.utils.Tuple;
 
 public class MailIndexer {
   public enum MailSchema {
@@ -181,41 +185,37 @@ public class MailIndexer {
 
   public static Document createDocument() {
     Document doc = new Document();
-    for (MailSchema sf : MailSchema.STATIC_FIELDS) {
-      for (IndexableField indexableField : sf.getFields()) {
-        doc.add(indexableField);
-      }
-    }
+    Arrays.stream(MailSchema.STATIC_FIELDS).forEach(sf -> Arrays.stream(sf.getFields()).forEach(f -> doc.add(f)));
     return doc;
   }
 
-  public static Document prepareDocument(Mailbox mb, Mail value) {
+  public static Document prepareDocument(Mailbox mb, Mail mail) {
     Document document = TL_DOC.get();
-    for (MailSchema mf : MailSchema.STATIC_FIELDS) {
+    Arrays.stream(MailSchema.STATIC_FIELDS).forEach(mf -> {
       try {
-        mf.setFieldValues(document, value);
+        mf.setFieldValues(document, mail);
       } catch (Exception e) {
         LOG.error("Error setting field value {}, will ignore", mf, e);
       }
-    }
-    for (Entry<String, String> h : value.getHeaders().entrySet()) {
+    });
+    for (Entry<String, String> h : mail.getHeaders().entrySet()) {
       String name = h.getKey().toLowerCase();
-      String val = h.getValue();
+      String value = h.getValue();
       if (name.isEmpty()) continue;
       if (MailSchema.STATIC_FIELD_NAMES.contains(name)) continue;
-      if(name.startsWith(" ")) {
-        LOG.warn("Unknown header: {} -> {}", name, val);
+      if (name.startsWith(" ")) {
+        LOG.warn("Unknown header: {} -> {}", name, value);
         continue;
       }
-      
+
       boolean found = false;
       for (IndexableField f : document.getFields(name)) {
-        setValue((Field) f, val);
+        setValue((Field) f, value);
         found = true;
       }
       if (!found) {
-        document.add(new TextField(name, val, Store.YES));
-        document.add(new SortedDocValuesField(name, new BytesRef(val)));
+        document.add(new TextField(name, value, Store.YES));
+        document.add(new SortedDocValuesField(name, new BytesRef(value)));
       }
     }
     return document;
@@ -226,6 +226,10 @@ public class MailIndexer {
     for (MailSchema mf : MailSchema.STATIC_FIELDS) {
       mf.retrieveValue(mail, doc);
     }
+    List<IndexableField> fields = doc.getFields();
+    mail.headers = fields.stream().filter(x -> x.fieldType().stored() && !MailSchema.STATIC_FIELD_NAMES.contains(x.name())).map(f -> {
+      return Tuple.of(f.name(), f.stringValue());
+    }).collect(Collectors.toMap(t -> t.getKey(), t -> t.getValue()));
     return mail;
   }
 
