@@ -3,6 +3,9 @@ package com.codepurls.mailytics.service.index;
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -150,15 +153,17 @@ public class MailIndexer {
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.attachmentCount = doc.getField(name()).numericValue().intValue();
       }
+    };
+    public final static Set<String>  STATIC_FIELD_NAMES;
+    public final static MailSchema[] STATIC_FIELDS;
+    static {
+      STATIC_FIELDS = MailSchema.values();
+      STATIC_FIELD_NAMES = new HashSet<>();
+      for (MailSchema mf : STATIC_FIELDS) {
+        STATIC_FIELD_NAMES.add(mf.name());
+      }
     }
-    ;
-    
-    protected void setValue(Field f, String value) {
-      if(f instanceof SortedDocValuesField)
-        f.setBytesValue(new BytesRef(value));
-      else
-        f.setStringValue(value);
-    }
+
     public abstract Field[] getFields();
 
     public abstract void setFieldValues(Document doc, Mail mail);
@@ -169,9 +174,14 @@ public class MailIndexer {
   private static final ThreadLocal<Document> TL_DOC = ThreadLocal.withInitial(() -> createDocument());
   private static final Logger                LOG    = LoggerFactory.getLogger("mail-indexer");
 
+  public static void setValue(Field f, String value) {
+    if (f instanceof SortedDocValuesField) f.setBytesValue(new BytesRef(value));
+    else f.setStringValue(value);
+  }
+
   public static Document createDocument() {
     Document doc = new Document();
-    for (MailSchema sf : MailSchema.values()) {
+    for (MailSchema sf : MailSchema.STATIC_FIELDS) {
       for (IndexableField indexableField : sf.getFields()) {
         doc.add(indexableField);
       }
@@ -181,11 +191,31 @@ public class MailIndexer {
 
   public static Document prepareDocument(Mailbox mb, Mail value) {
     Document document = TL_DOC.get();
-    for (MailSchema mf : MailSchema.values()) {
+    for (MailSchema mf : MailSchema.STATIC_FIELDS) {
       try {
         mf.setFieldValues(document, value);
       } catch (Exception e) {
         LOG.error("Error setting field value {}, will ignore", mf, e);
+      }
+    }
+    for (Entry<String, String> h : value.getHeaders().entrySet()) {
+      String name = h.getKey().toLowerCase();
+      String val = h.getValue();
+      if (name.isEmpty()) continue;
+      if (MailSchema.STATIC_FIELD_NAMES.contains(name)) continue;
+      if(name.startsWith(" ")) {
+        LOG.warn("Unknown header: {} -> {}", name, val);
+        continue;
+      }
+      
+      boolean found = false;
+      for (IndexableField f : document.getFields(name)) {
+        setValue((Field) f, val);
+        found = true;
+      }
+      if (!found) {
+        document.add(new TextField(name, val, Store.YES));
+        document.add(new SortedDocValuesField(name, new BytesRef(val)));
       }
     }
     return document;
@@ -193,7 +223,7 @@ public class MailIndexer {
 
   public static RESTMail prepareTransferObject(Document doc) {
     RESTMail mail = new RESTMail();
-    for (MailSchema mf : MailSchema.values()) {
+    for (MailSchema mf : MailSchema.STATIC_FIELDS) {
       mf.retrieveValue(mail, doc);
     }
     return mail;
