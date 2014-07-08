@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.queryparser.classic.ParseException;
@@ -71,15 +70,7 @@ public class SearchService {
 
   private IndexReader getReader(User user, List<Integer> mbIds) {
     Collection<Mailbox> mbs = userService.getMailboxes(user, mbIds);
-    List<DirectoryReader> list = mbs.stream().map((mb) -> {
-      try {
-        return DirectoryReader.open(indexingService.getIndexDir(mb));
-      } catch (Exception e) {
-        LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
-        return null;
-      }
-    }).filter((r) -> r != null).collect(Collectors.toList());
-    //TODO: Close readers to prevent resource leak.
+    List<IndexReader> list = mbs.stream().map((mb) -> indexingService.getOrOpenReader(mb)).filter((r) -> r != null).collect(Collectors.toList());
     return new MultiReader(list.toArray(new IndexReader[list.size()]), false);
   }
 

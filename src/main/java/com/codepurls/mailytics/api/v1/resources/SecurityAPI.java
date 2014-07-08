@@ -24,13 +24,13 @@ public class SecurityAPI {
 
   public static class Visitor {
     @NotEmpty(message = " is required")
-    public String user, password;
+    public String username, password;
   }
 
   @POST
   @Path("login")
   public Response login(@Valid Visitor visitor) {
-    String token = userService.authenticate(visitor.user, visitor.password);
+    String token = userService.authenticate(visitor.username, visitor.password);
     if (token == null) {
       return Response.status(Status.UNAUTHORIZED).entity(Errors.addTopLevelError("Invalid username or password")).build();
     } else {

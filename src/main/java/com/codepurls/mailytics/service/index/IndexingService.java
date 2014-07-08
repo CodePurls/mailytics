@@ -5,11 +5,10 @@ import io.dropwizard.lifecycle.Managed;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +17,8 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
@@ -40,18 +41,18 @@ import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingService implements Managed {
-  private static final Logger                       LOG         = LoggerFactory.getLogger("IndexingService");
-  private final IndexConfig                         index;
-  private final UserService                         userService;
-  private final ExecutorService                     indexerPool;
-  private final BlockingQueue<Tuple<Mailbox, Mail>> mailQueue;
-  private final BlockingQueue<Mailbox>              mboxQueue;
-  private final AtomicBoolean                       keepRunning = new AtomicBoolean(true);
-  private final Map<Mailbox, IndexWriter>           userIndices;
-  private final Version                             version     = Version.LUCENE_4_9;
-  private final Analyzer                            analyzer;
-  private final Thread                              mailboxVisitor;
-  private final Object                              LOCK        = new Object();
+  private static final Logger                           LOG         = LoggerFactory.getLogger("IndexingService");
+  private final IndexConfig                             index;
+  private final UserService                             userService;
+  private final ExecutorService                         indexerPool;
+  private final BlockingQueue<Tuple<Mailbox, Mail>>     mailQueue;
+  private final BlockingQueue<Mailbox>                  mboxQueue;
+  private final AtomicBoolean                           keepRunning = new AtomicBoolean(true);
+  private final ConcurrentHashMap<Mailbox, IndexWriter> userIndices;
+  private final ConcurrentHashMap<Mailbox, IndexReader> indexReaders;
+  private final Version                                 version     = Version.LUCENE_4_9;
+  private final Analyzer                                analyzer;
+  private final Thread                                  mailboxVisitor;
 
   public class IndexWorker implements Callable<AtomicLong> {
     private final AtomicLong counter = new AtomicLong();
@@ -160,7 +161,8 @@ public class IndexingService implements Managed {
     this.mailQueue = new ArrayBlockingQueue<>(index.indexQueueSize);
     this.mboxQueue = new ArrayBlockingQueue<>(32);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
-    this.userIndices = new HashMap<>();
+    this.userIndices = new ConcurrentHashMap<>();
+    this.indexReaders = new ConcurrentHashMap<>();
     this.analyzer = new StandardAnalyzer(version);
   }
 
@@ -184,17 +186,14 @@ public class IndexingService implements Managed {
   }
 
   protected IndexWriter getWriterFor(Mailbox mb) throws IOException {
-    IndexWriter writer = userIndices.get(mb);
-    if (writer == null) {
-      synchronized (LOCK) {
-        writer = userIndices.get(mb);
-        if (writer == null) {
-          writer = new IndexWriter(getIndexDir(this.index, mb), getWriterConfig());
-          userIndices.put(mb, writer);
-        }
+    return userIndices.computeIfAbsent(mb, (mbox) -> {
+      try {
+        return new IndexWriter(getIndexDir(this.index, mbox), getWriterConfig());
+      } catch (Exception e) {
+        LOG.error("Error opening index writer for mailbox: {}", mbox.name, e);
+        return null;
       }
-    }
-    return writer;
+    });
   }
 
   public void start() throws Exception {
@@ -263,6 +262,17 @@ public class IndexingService implements Managed {
 
   public Analyzer getAnalyzer() {
     return analyzer;
+  }
+
+  public IndexReader getOrOpenReader(Mailbox mb) {
+    return this.indexReaders.computeIfAbsent(mb, (k) -> {
+      try {
+        return DirectoryReader.open(getIndexDir(k));
+      } catch (Exception e) {
+        LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
+        return null;
+      }
+    });
   }
 
 }
