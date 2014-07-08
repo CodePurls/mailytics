@@ -22,6 +22,7 @@ import com.codepurls.mailytics.service.search.SearchService;
 import com.codepurls.mailytics.service.security.UserService;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.sun.jersey.core.impl.provider.xml.LazySingletonContextProvider;
 
 public class Mailytics extends Application<Config> {
   private static Mailytics instance;
@@ -47,14 +48,29 @@ public class Mailytics extends Application<Config> {
     SearchService searchService = new SearchService(indexingService, userService);
     env.lifecycle().manage(indexingService);
     configureJersey(env);
-    configureAPI(cfg, env, indexingService, searchService);
+    configureAPI(cfg, env, userService, indexingService, searchService);
 
     instance = this;
   }
+  public static class ServiceInjector<T> extends LazySingletonContextProvider<T>{
+    private T service;
 
-  private void configureAPI(Config cfg, Environment env, IndexingService indexingService, SearchService searchService) {
-    env.jersey().register(new V1(indexingService, searchService));
+    @SuppressWarnings("unchecked")
+    protected ServiceInjector(T service) {
+      super((Class<T>) service.getClass());
+      this.service = service;
+    }
+
+    protected T getInstance() {
+      return service;
+    }
+  }
+  private void configureAPI(Config cfg, Environment env, UserService userService, IndexingService indexingService, SearchService searchService) {
+    env.jersey().register(V1.class);
     env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(indexingService.getUserService()), "mailytics.com"));
+    env.jersey().register(new ServiceInjector<>(searchService));
+    env.jersey().register(new ServiceInjector<>(userService));
+    env.jersey().register(new ServiceInjector<>(indexingService));
     env.servlets().addFilter("CORSFilter", new CORSFilter(cfg.cors));
   }
 

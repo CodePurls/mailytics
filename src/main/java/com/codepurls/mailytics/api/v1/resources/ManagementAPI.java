@@ -11,6 +11,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -26,13 +27,10 @@ import com.codepurls.mailytics.service.security.UserService;
 @Produces(MediaType.APPLICATION_JSON)
 public class ManagementAPI {
 
-  private final UserService     userService;
-  private final IndexingService indexingService;
-
-  public ManagementAPI(UserService userService, IndexingService indexingService) {
-    this.userService = userService;
-    this.indexingService = indexingService;
-  }
+  @Context
+  private UserService     userService;
+  @Context
+  private IndexingService indexingService;
 
   @Path("mailboxes")
   @GET
@@ -52,9 +50,7 @@ public class ManagementAPI {
   @PUT
   public Response scheduleIndex(@Auth User user, @PathParam("id") int mailboxId) {
     Mailbox mb = userService.getMailbox(user, mailboxId);
-    if (mb == null) {
-      return mbNotfoundResponse(mailboxId);
-    }
+    if (mb == null) { return mbNotfoundResponse(mailboxId); }
     if (mb.status == MailboxStatus.INDEXED) {
       Errors errors = Errors.addTopLevelError(format("Mailbox with id %d is already indexed", mailboxId));
       return Response.status(Status.NOT_MODIFIED).entity(errors).build();
@@ -68,10 +64,8 @@ public class ManagementAPI {
   @PUT
   public Response scheduleReindex(@Auth User user, @PathParam("id") int mailboxId) throws IOException {
     Mailbox mb = userService.getMailbox(user, mailboxId);
-    if(mb == null) {
-      return mbNotfoundResponse(mailboxId);
-    }
-    if(mb.status == MailboxStatus.INDEXING) {
+    if (mb == null) { return mbNotfoundResponse(mailboxId); }
+    if (mb.status == MailboxStatus.INDEXING) {
       Errors errors = Errors.addTopLevelError(format("Mailbox with id %d is being indexed", mailboxId));
       return Response.status(Status.BAD_REQUEST).entity(errors).build();
     }

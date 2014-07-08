@@ -10,6 +10,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -24,11 +25,9 @@ public class SearchAPI {
   private static final String PARAM_SIZE         = "size";
   private static final String PARAM_DEFAULT_PAGE = "1";
   private static final String PARAM_DEFAULT_SIZE = "10";
-  private final SearchService searchService;
 
-  public SearchAPI(SearchService searchService) {
-    this.searchService = searchService;
-  }
+  @Context
+  private SearchService       searchService;
 
   @GET
   public Response searchAll(@Auth User user, @QueryParam(PARAM_QUERY) String query,
@@ -42,7 +41,7 @@ public class SearchAPI {
       @DefaultValue(PARAM_DEFAULT_SIZE) @QueryParam(PARAM_SIZE) int size, @DefaultValue(PARAM_DEFAULT_PAGE) @QueryParam(PARAM_PAGE) int page) {
     return Response.ok(searchService.search(user, createRequest(mbIds, query, page, size))).build();
   }
-  
+
   private Request createRequest(List<Integer> mbIds, String query, int page, int size) {
     Request r = new Request();
     r.mailboxIds = mbIds;
