@@ -28,17 +28,25 @@ public class SearchAPI {
 
   @Context
   private SearchService       searchService;
+  @Auth
+  private User                user;
+  @QueryParam(PARAM_QUERY)
+  private String              query;
+  @DefaultValue(PARAM_DEFAULT_SIZE)
+  @QueryParam(PARAM_SIZE)
+  private int                 size;
+  @DefaultValue(PARAM_DEFAULT_PAGE)
+  @QueryParam(PARAM_PAGE)
+  private int                 page;
 
   @GET
-  public Response searchAll(@Auth User user, @QueryParam(PARAM_QUERY) String query,
-      @DefaultValue(PARAM_DEFAULT_SIZE) @QueryParam(PARAM_SIZE) int size, @DefaultValue(PARAM_DEFAULT_PAGE) @QueryParam(PARAM_PAGE) int page) {
+  public Response searchAll() {
     return Response.ok(searchService.search(user, createRequest(Collections.emptyList(), query, page, size))).build();
   }
 
   @GET
   @Path("mailbox")
-  public Response searchMBox(@Auth User user, @QueryParam(PARAM_QUERY) String query, @QueryParam("id") List<Integer> mbIds,
-      @DefaultValue(PARAM_DEFAULT_SIZE) @QueryParam(PARAM_SIZE) int size, @DefaultValue(PARAM_DEFAULT_PAGE) @QueryParam(PARAM_PAGE) int page) {
+  public Response searchMBox(@QueryParam("id") List<Integer> mbIds) {
     return Response.ok(searchService.search(user, createRequest(mbIds, query, page, size))).build();
   }
 
