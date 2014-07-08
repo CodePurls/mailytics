@@ -245,6 +245,7 @@ public class MailIndexer {
         continue;
       }
       try {
+        //TODO: Cleanup un-common header values to prevent cross document pollution. 
         boolean found = false;
         for (IndexableField f : document.getFields(name)) {
           setValue((Field) f, value);
