@@ -31,6 +31,7 @@ public class MBoxReader implements MailReader {
     Properties props = new Properties();
     System.setProperty(MboxFile.KEY_BUFFER_STRATEGY, BufferStrategy.MAPPED.name());
     System.setProperty("mstor.cache.disabled", "true");
+    System.setProperty("mail.imap.partialfetch", "false");
     props.setProperty("mstor.mbox.metadataStrategy", "none");
     Session session = Session.getDefaultInstance(props);
     try {
@@ -57,6 +58,9 @@ public class MBoxReader implements MailReader {
           try {
             Message message = folder.getMessage(i);
             visitor.onNewMail(new MBoxMail(mboxFolder, message));
+          } catch (OutOfMemoryError oom) {
+            LOG.error("OutOfMemory parsing message #{} in folder {}, will skip.", i, mboxFolder.getName());
+            continue;
           } catch (IndexOutOfBoundsException e) {
             break;
           }

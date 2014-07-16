@@ -42,8 +42,10 @@ public class Config extends Configuration {
     @JsonProperty
     public String location       = System.getProperty("user.home", System.getProperty("java.io.tmpdir")) + File.separatorChar + "mailyics";
     @JsonProperty
-    public int    indexerThreads = 2;
+    public int    indexerThreads = 1;
     @JsonProperty
-    public int    indexQueueSize = 1024;
+    public int    indexQueueSize = 4;
+    @JsonProperty
+    public int    mboxQueueSize  = 1;
   }
 }

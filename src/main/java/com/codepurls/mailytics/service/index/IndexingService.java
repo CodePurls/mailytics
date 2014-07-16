@@ -1,5 +1,6 @@
 package com.codepurls.mailytics.service.index;
 
+import static java.lang.String.format;
 import io.dropwizard.lifecycle.Managed;
 
 import java.io.File;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.NoSuchDirectoryException;
 import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,13 +120,19 @@ public class IndexingService implements Managed {
           break;
         } catch (Exception e) {
           LOG.error("Error during mbox retrieval loop, will ignore", e);
+        } catch (Throwable e) {
+          LOG.error("Error indexing mails", e);
         }
+
       }
       LOG.info("Stopping MailboxVisitor");
     }
 
     private void doVisit() throws InterruptedException {
       Mailbox mb = mboxQueue.take();
+      String oldName = Thread.currentThread().getName();
+      String newName = format("%s-mb-%s", oldName, mb.name);
+      Thread.currentThread().setName(newName);
       LOG.info("Will index new mailbox: {}", mb.name);
       AtomicInteger mails = new AtomicInteger();
       AtomicInteger folders = new AtomicInteger();
@@ -141,7 +149,7 @@ public class IndexingService implements Managed {
         }
 
         public void onNewFolder(MailFolder folder) {
-          LOG.info("Visiting folder {}", folder.getName());
+          LOG.info("Visiting '{}/{}'", mb.name, folder.getName());
           folders.incrementAndGet();
         }
 
@@ -151,6 +159,7 @@ public class IndexingService implements Managed {
       });
       LOG.info("Done visiting mailbox '{}', visited {} folders and {} mails", mb.name, folders.get(), mails.get());
       mailQueue.put(Tuple.of(mb, null));
+      Thread.currentThread().setName(oldName);
     }
   }
 
@@ -159,7 +168,7 @@ public class IndexingService implements Managed {
     this.userService = userService;
     this.indexerPool = Executors.newFixedThreadPool(index.indexerThreads);
     this.mailQueue = new ArrayBlockingQueue<>(index.indexQueueSize);
-    this.mboxQueue = new ArrayBlockingQueue<>(32);
+    this.mboxQueue = new ArrayBlockingQueue<>(1);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
     this.userIndices = new ConcurrentHashMap<>();
     this.indexReaders = new ConcurrentHashMap<>();
@@ -268,6 +277,9 @@ public class IndexingService implements Managed {
     return this.indexReaders.computeIfAbsent(mb, (k) -> {
       try {
         return DirectoryReader.open(getIndexDir(k));
+      } catch (NoSuchDirectoryException e) {
+        LOG.warn("No index found for mail box [id:{}, name:{}], error: {}", mb.id, mb.name, e.getMessage());
+        return null;
       } catch (Exception e) {
         LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
         return null;

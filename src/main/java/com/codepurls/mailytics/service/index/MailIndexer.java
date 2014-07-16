@@ -36,13 +36,13 @@ public class MailIndexer {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
       }
-      
+
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setStringValue(orEmpty(mail.getMessageId()));
         }
       }
-      
+
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.messageId = doc.get(name());
       }
@@ -51,13 +51,13 @@ public class MailIndexer {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
       }
-      
+
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setStringValue(orEmpty(mail.getHeaders().get(RFC822Constants.ORGANIZATION)));
         }
       }
-      
+
       public void retrieveValue(RESTMail mail, Document doc) {
       }
     },
@@ -71,7 +71,7 @@ public class MailIndexer {
           ((Field) f).setStringValue(orEmpty(mail.getHeaders().get(RFC822Constants.CONTENT_TYPE)));
         }
       }
-      
+
       public void retrieveValue(RESTMail mail, Document doc) {
       }
     },
@@ -100,7 +100,7 @@ public class MailIndexer {
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
           Date date = mail.getDate();
-          if(date == null) {
+          if (date == null) {
             LOG.warn("Null date for mail: {}, folder: {} ", mail.getSubject(), mail.getFolder().getName());
             date = new Date(0);
           }
@@ -115,7 +115,8 @@ public class MailIndexer {
 
     from {
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.NO), new TextField(name(), "", Store.YES), new SortedDocValuesField(name(), new BytesRef("")) };
+        return new Field[] { new StringField(name(), "", Store.NO), new TextField(name(), "", Store.YES),
+            new SortedDocValuesField(name(), new BytesRef("")) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
@@ -233,7 +234,10 @@ public class MailIndexer {
         mf.setFieldValues(document, mail);
       } catch (Exception e) {
         LOG.error("Error setting field value {}, will ignore", mf, e);
+      } catch (Throwable e) {
+        LOG.error("Error indexing mails", e);
       }
+
     });
     for (Entry<String, String> h : mail.getHeaders().entrySet()) {
       String name = h.getKey().toLowerCase();
@@ -245,7 +249,7 @@ public class MailIndexer {
         continue;
       }
       try {
-        //TODO: Cleanup un-common header values to prevent cross document pollution. 
+        // TODO: Cleanup un-common header values to prevent cross document pollution.
         boolean found = false;
         for (IndexableField f : document.getFields(name)) {
           setValue((Field) f, value);

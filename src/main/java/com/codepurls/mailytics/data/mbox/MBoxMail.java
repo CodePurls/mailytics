@@ -18,12 +18,15 @@ import javax.mail.Multipart;
 import javax.mail.Part;
 
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.data.core.AbstractMail;
 import com.codepurls.mailytics.data.core.Attachment;
 import com.codepurls.mailytics.service.ingest.MailReaderException;
 
 public final class MBoxMail extends AbstractMail<MBoxFolder> {
+  private static final Logger LOG = LoggerFactory.getLogger("MboxMail");
   private final Message mail;
 
   public MBoxMail(MBoxFolder folder, Message mail) {
@@ -39,6 +42,9 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
       headers = mail.getAllHeaders();
     } catch (MessagingException e) {
       throw new MailReaderException("Error retrieving headers", e);
+    } catch (OutOfMemoryError e) {
+      LOG.error("", e);
+      return res;
     }
     while (headers.hasMoreElements()) {
       Header header = headers.nextElement();
