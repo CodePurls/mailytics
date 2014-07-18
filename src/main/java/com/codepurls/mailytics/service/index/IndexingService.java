@@ -37,6 +37,7 @@ import com.codepurls.mailytics.data.core.Mailbox.MailboxStatus;
 import com.codepurls.mailytics.service.ingest.MailReader.MailVisitor;
 import com.codepurls.mailytics.service.ingest.MailReaderContext;
 import com.codepurls.mailytics.service.security.UserService;
+import com.codepurls.mailytics.utils.NamedThreadFactory;
 import com.codepurls.mailytics.utils.Tuple;
 
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
@@ -95,6 +96,10 @@ public class IndexingService implements Managed {
     private void finalizeIndex(Mailbox mb) {
       LOG.info("Received end of mailbox, will mark as indexed.");
       IndexWriter writer = userIndices.remove(mb);
+      if(writer == null) {
+        LOG.warn("No index writer found for mb: '{}'", mb.name);
+        return;
+      }
       try {
         LOG.info("Commiting index for mailbox '{}'", mb.name);
         writer.commit();
@@ -166,7 +171,7 @@ public class IndexingService implements Managed {
   public IndexingService(IndexConfig index, UserService userService) {
     this.index = index;
     this.userService = userService;
-    this.indexerPool = Executors.newFixedThreadPool(index.indexerThreads);
+    this.indexerPool = Executors.newFixedThreadPool(index.indexerThreads, new NamedThreadFactory("indexer"));
     this.mailQueue = new ArrayBlockingQueue<>(index.indexQueueSize);
     this.mboxQueue = new ArrayBlockingQueue<>(1);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
@@ -242,7 +247,11 @@ public class IndexingService implements Managed {
 
   public void index(Mailbox mb) {
     LOG.info("Scheduling indexing of mailbox {}-{}", mb.id, mb.name);
-    mboxQueue.add(mb);
+    try {
+      mboxQueue.put(mb);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted while queuing mailbox", e);
+    }
   }
 
   public void reindex(Mailbox mb) throws IOException {
