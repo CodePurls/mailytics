@@ -261,6 +261,8 @@ public class MailIndexer {
         }
       } catch (Exception e) {
         LOG.error("Error indexing header: {} -> {}", name, value, e);
+      } catch (Throwable e) {
+        LOG.error("Error indexing header: {} -> {}", name, value, e);
       }
     }
     return document;
