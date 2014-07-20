@@ -86,6 +86,7 @@ public class ManagementAPI {
   @Path("mailboxes/{id}/reindex")
   @PUT
   public Response scheduleReindex(@PathParam("id") int mailboxId) throws IOException {
+    user = userService.validate(user);
     Mailbox mb = userService.getMailbox(user, mailboxId);
     if (mb == null) { return mbNotfoundResponse(mailboxId); }
     if (mb.status == MailboxStatus.INDEXING) {

@@ -108,7 +108,7 @@ public class UserService {
     return Optional.fromNullable(userDao.findById(1));
   }
 
-  private User validate(User user) {
+  public User validate(User user) {
     if(getUserCount() > 1) {
       Preconditions.checkArgument(user != null);
     }
