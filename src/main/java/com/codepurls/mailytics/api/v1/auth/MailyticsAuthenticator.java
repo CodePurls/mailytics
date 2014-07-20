@@ -17,7 +17,11 @@ public class MailyticsAuthenticator implements Authenticator<String, User> {
 
   @Override
   public Optional<User> authenticate(String credentials) throws AuthenticationException {
-    return userService.findUser(credentials);
+    if(userService.getUserCount() > 1) {
+      return userService.findUser(credentials);
+    }else {
+      return userService.findFirstUser();
+    }
   }
 
 }

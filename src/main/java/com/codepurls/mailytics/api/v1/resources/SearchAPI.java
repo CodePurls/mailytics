@@ -34,7 +34,7 @@ public class SearchAPI {
   @Context
   private SearchService       searchService;
 
-  @Auth
+  @Auth(required = false)
   private User                user;
 
   @QueryParam(PARAM_QUERY)

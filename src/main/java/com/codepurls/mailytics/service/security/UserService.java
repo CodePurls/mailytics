@@ -17,6 +17,7 @@ import com.codepurls.mailytics.service.dao.UserDao;
 import com.codepurls.mailytics.utils.crypto.PBEHash;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
 import com.google.common.hash.Hashing;
 
 public class UserService {
@@ -34,6 +35,7 @@ public class UserService {
   }
 
   public Mailbox createMailbox(User user, Mailbox mailbox) {
+    user = validate(user);
     int id = userDao.createMailbox(mailbox);
     eventLogService.log(EventType.created, ObjectType.mailbox, user, null, mailbox.name);
     return userDao.findMailboxById(id);
@@ -69,12 +71,14 @@ public class UserService {
   }
 
   public Collection<Mailbox> getMailboxes(User user) {
-    Collection<Mailbox> mailboxes = userDao.getMailboxes(user.id);
-    mailboxes.forEach((mb) -> mb.user = user);
+    User usr = validate(user);
+    Collection<Mailbox> mailboxes = userDao.getMailboxes(usr.id);
+    mailboxes.forEach((mb) -> mb.user = usr);
     return mailboxes;
   }
 
   public Mailbox getMailbox(User user, int mailboxId) {
+    user = validate(user);
     Collection<Mailbox> mailboxes = getMailboxes(user);
     for (Mailbox mailbox : mailboxes) {
       if (mailbox.id == mailboxId) return mailbox;
@@ -83,6 +87,7 @@ public class UserService {
   }
 
   public Collection<Mailbox> getMailboxes(User user, List<Integer> mbIds) {
+    user = validate(user);
     Collection<Mailbox> mailboxes = getMailboxes(user);
     List<Mailbox> toReturn = new ArrayList<Mailbox>(mailboxes.size() - mbIds.size());
     for (Mailbox mailbox : mailboxes) {
@@ -95,4 +100,18 @@ public class UserService {
     userDao.updateMailboxStatus(mb.id, status.name());
   }
 
+  public int getUserCount() {
+    return userDao.getUserCount();
+  }
+
+  public Optional<User> findFirstUser() {
+    return Optional.fromNullable(userDao.findById(1));
+  }
+
+  private User validate(User user) {
+    if(getUserCount() > 1) {
+      Preconditions.checkArgument(user != null);
+    }
+    return findFirstUser().get();
+  }
 }

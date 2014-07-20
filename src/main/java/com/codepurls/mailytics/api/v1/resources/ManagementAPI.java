@@ -35,14 +35,17 @@ public class ManagementAPI {
   @Context
   private IndexingService indexingService;
 
+  @Auth(required = false)
+  private User            user;
+
   @Path("mailboxes")
   @GET
-  public Response getMailbox(@Auth User user) {
+  public Response getMailbox() {
     return Response.ok(userService.getMailboxes(user)).build();
   }
 
   @PUT
-  public Response addMailbox(@Auth User user, @Valid Mailbox mailbox) {
+  public Response addMailbox(@Valid Mailbox mailbox) {
     mailbox.user = user;
     Mailbox created = userService.createMailbox(user, mailbox);
     created.user = user;
@@ -51,15 +54,15 @@ public class ManagementAPI {
 
   @Path("mailboxes/index")
   @PUT
-  public Response indexAll(@Auth User user) {
+  public Response indexAll() {
     Collection<Mailbox> mailboxes = userService.getMailboxes(user);
     List<String> messages = new ArrayList<>(mailboxes.size());
     for (Mailbox mailbox : mailboxes) {
       userService.updateMailboxStatus(mailbox, MailboxStatus.NEW);
-      Response response = scheduleIndex(user, mailbox.id);
-      if(response.getStatus() != Status.OK.getStatusCode()) {
+      Response response = scheduleIndex(mailbox.id);
+      if (response.getStatus() != Status.OK.getStatusCode()) {
         messages.add(((Errors) response.getEntity()).errors.get(0).message);
-      }else {
+      } else {
         messages.add(format("{ \"status\": \"Mailbox '%s' scheduled for indexing\"}", mailbox.name));
       }
     }
@@ -68,7 +71,7 @@ public class ManagementAPI {
 
   @Path("mailboxes/{id}/index")
   @PUT
-  public Response scheduleIndex(@Auth User user, @PathParam("id") int mailboxId) {
+  public Response scheduleIndex(@PathParam("id") int mailboxId) {
     Mailbox mb = userService.getMailbox(user, mailboxId);
     if (mb == null) { return mbNotfoundResponse(mailboxId); }
     if (mb.status == MailboxStatus.INDEXED) {
@@ -82,7 +85,7 @@ public class ManagementAPI {
 
   @Path("mailboxes/{id}/reindex")
   @PUT
-  public Response scheduleReindex(@Auth User user, @PathParam("id") int mailboxId) throws IOException {
+  public Response scheduleReindex(@PathParam("id") int mailboxId) throws IOException {
     Mailbox mb = userService.getMailbox(user, mailboxId);
     if (mb == null) { return mbNotfoundResponse(mailboxId); }
     if (mb.status == MailboxStatus.INDEXING) {

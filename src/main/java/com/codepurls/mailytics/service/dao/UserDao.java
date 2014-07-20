@@ -70,4 +70,7 @@ public interface UserDao {
 
   @SqlUpdate("UPDATE mailbox SET status = :status WHERE id = :id")
   void updateMailboxStatus(@Bind("id") int id, @Bind("status") String status);
+
+  @SqlQuery("SELECT count(id) FROM user")
+  int getUserCount();
 }
