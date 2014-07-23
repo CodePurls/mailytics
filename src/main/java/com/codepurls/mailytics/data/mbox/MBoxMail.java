@@ -27,7 +27,8 @@ import com.codepurls.mailytics.service.ingest.MailReaderException;
 
 public final class MBoxMail extends AbstractMail<MBoxFolder> {
   private static final Logger LOG = LoggerFactory.getLogger("MboxMail");
-  private final Message mail;
+  private final Message       mail;
+  private Map<String, String> headers;
 
   public MBoxMail(MBoxFolder folder, Message mail) {
     super(folder);
@@ -36,21 +37,24 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
 
   @SuppressWarnings("unchecked")
   public Map<String, String> getHeaders() {
+    if(headers != null)
+      return headers;
     Map<String, String> res = new HashMap<>();
-    Enumeration<Header> headers;
+    Enumeration<Header> mailHeaders;
     try {
-      headers = mail.getAllHeaders();
+      mailHeaders = mail.getAllHeaders();
     } catch (MessagingException e) {
       throw new MailReaderException("Error retrieving headers", e);
     } catch (OutOfMemoryError e) {
       LOG.error("", e);
       return res;
     }
-    while (headers.hasMoreElements()) {
-      Header header = headers.nextElement();
+    while (mailHeaders.hasMoreElements()) {
+      Header header = mailHeaders.nextElement();
       res.put(header.getName(), header.getValue());
     }
-    return res;
+    this.headers = res;
+    return this.headers;
   }
 
   public String getBody() {
@@ -96,7 +100,7 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
     }
     return Collections.emptyList();
   }
-  
+
   public Date getDate() {
     try {
       Date receivedDate = mail.getReceivedDate();
@@ -106,7 +110,7 @@ public final class MBoxMail extends AbstractMail<MBoxFolder> {
       return new Date();
     }
   }
-  
+
   private List<Attachment> getAttachments(BodyPart part) throws Exception {
     List<Attachment> result = new ArrayList<>();
     Object content = part.getContent();

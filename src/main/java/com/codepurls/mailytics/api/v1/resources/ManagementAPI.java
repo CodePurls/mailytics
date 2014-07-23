@@ -49,7 +49,7 @@ public class ManagementAPI {
     mailbox.user = user;
     Mailbox created = userService.createMailbox(user, mailbox);
     created.user = user;
-    return Response.created(UriBuilder.fromPath("manage/{id}").build(created.id)).entity(created).build();
+    return Response.created(UriBuilder.fromPath("{id}").build(created.id)).entity(created).build();
   }
 
   @Path("mailboxes/index")
@@ -72,6 +72,7 @@ public class ManagementAPI {
   @Path("mailboxes/{id}/index")
   @PUT
   public Response scheduleIndex(@PathParam("id") int mailboxId) {
+    user = userService.validate(user);
     Mailbox mb = userService.getMailbox(user, mailboxId);
     if (mb == null) { return mbNotfoundResponse(mailboxId); }
     if (mb.status == MailboxStatus.INDEXED) {

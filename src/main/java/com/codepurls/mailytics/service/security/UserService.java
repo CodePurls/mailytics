@@ -36,6 +36,7 @@ public class UserService {
 
   public Mailbox createMailbox(User user, Mailbox mailbox) {
     user = validate(user);
+    mailbox.user = user;
     int id = userDao.createMailbox(mailbox);
     eventLogService.log(EventType.created, ObjectType.mailbox, user, null, mailbox.name);
     return userDao.findMailboxById(id);

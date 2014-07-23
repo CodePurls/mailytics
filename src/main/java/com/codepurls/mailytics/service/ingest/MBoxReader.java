@@ -32,7 +32,12 @@ public class MBoxReader implements MailReader {
     System.setProperty(MboxFile.KEY_BUFFER_STRATEGY, BufferStrategy.MAPPED.name());
     System.setProperty("mstor.cache.disabled", "true");
     System.setProperty("mail.imap.partialfetch", "false");
-    props.setProperty("mstor.mbox.metadataStrategy", "none");
+    System.setProperty("mstor.mbox.metadataStrategy", "none");
+    System.setProperty("mstor.mbox.cacheBuffers", "false");
+    System.setProperty("mstor.metadata", "disabled");
+    System.setProperty("mstor.mbox.parsing.relaxed", "true");
+//    System.setProperty("mstor.mbox.encoding", "US-ASCII");
+    System.setProperty("mstor.mbox.mozillaCompatibility", "true");
     Session session = Session.getDefaultInstance(props);
     try {
       store = session.getStore(new URLName(format("mstor:%s", uri)));
@@ -63,11 +68,14 @@ public class MBoxReader implements MailReader {
             continue;
           } catch (IndexOutOfBoundsException e) {
             break;
+          } catch(MessagingException me) {
+            LOG.error("Messaging exception while reading folder {}", mboxFolder.getName(), me);
+            break;
           }
         }
       }
       if ((folder.getType() & Folder.HOLDS_FOLDERS) != 0) {
-        Arrays.stream(folder.list()).forEach((f) -> walk(new MBoxFolder(f, parent), f, visitor));
+        Arrays.stream(folder.list()).filter(f-> !f.getName().startsWith(".")).forEach((f) -> walk(new MBoxFolder(f, parent), f, visitor));
       }
     } catch (MessagingException e) {
       throw new RuntimeException(e);
