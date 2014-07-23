@@ -6,10 +6,12 @@ import io.dropwizard.lifecycle.Managed;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -39,23 +41,26 @@ import com.codepurls.mailytics.service.ingest.MailReaderContext;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.NamedThreadFactory;
 import com.codepurls.mailytics.utils.Tuple;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicInteger;
 import edu.emory.mathcs.backport.java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingService implements Managed {
-  private static final Logger                           LOG         = LoggerFactory.getLogger("IndexingService");
-  private final IndexConfig                             index;
-  private final UserService                             userService;
-  private final ExecutorService                         indexerPool;
-  private final BlockingQueue<Tuple<Mailbox, Mail>>     mailQueue;
-  private final BlockingQueue<Mailbox>                  mboxQueue;
-  private final AtomicBoolean                           keepRunning = new AtomicBoolean(true);
-  private final ConcurrentHashMap<Mailbox, IndexWriter> userIndices;
-  private final ConcurrentHashMap<Mailbox, IndexReader> indexReaders;
-  private final Version                                 version     = Version.LUCENE_4_9;
-  private final Analyzer                                analyzer;
-  private final Thread                                  mailboxVisitor;
+  private static final Logger                                LOG         = LoggerFactory.getLogger("IndexingService");
+  private final IndexConfig                                  index;
+  private final UserService                                  userService;
+  private final ExecutorService                              indexerPool;
+  private final BlockingQueue<Tuple<Mailbox, Mail>>          mailQueue;
+  private final BlockingQueue<Mailbox>                       mboxQueue;
+  private final AtomicBoolean                                keepRunning = new AtomicBoolean(true);
+  private final ConcurrentHashMap<Mailbox, IndexWriter>      userIndices;
+  private final LoadingCache<Mailbox, Optional<IndexReader>> indexReaders;
+  private final Version                                      version     = Version.LUCENE_4_9;
+  private final Analyzer                                     analyzer;
+  private final Thread                                       mailboxVisitor;
 
   public class IndexWorker implements Callable<AtomicLong> {
     private final AtomicLong counter = new AtomicLong();
@@ -96,7 +101,7 @@ public class IndexingService implements Managed {
     private void finalizeIndex(Mailbox mb) {
       LOG.info("Received end of mailbox, will mark as indexed.");
       IndexWriter writer = userIndices.remove(mb);
-      if(writer == null) {
+      if (writer == null) {
         LOG.warn("No index writer found for mb: '{}'", mb.name);
         return;
       }
@@ -176,13 +181,31 @@ public class IndexingService implements Managed {
     this.mboxQueue = new ArrayBlockingQueue<>(1);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
     this.userIndices = new ConcurrentHashMap<>();
-    this.indexReaders = new ConcurrentHashMap<>();
+    this.indexReaders = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS).softValues()
+        .removalListener((r) -> LOG.info("Unloading index reader for mailbox: {}", r.getKey().toString()))
+        .build(new CacheLoader<Mailbox, Optional<IndexReader>>() {
+          public Optional<IndexReader> load(Mailbox mb) throws Exception {
+            LOG.info("Loading index reader for mailbox: {}", mb.name);
+            return loadIndexReader(mb);
+          }
+        });
     this.analyzer = new StandardAnalyzer(version);
   }
 
+  protected Optional<IndexReader> loadIndexReader(Mailbox mb) {
+    try {
+      return Optional.of(DirectoryReader.open(getIndexDir(mb)));
+    } catch (NoSuchDirectoryException e) {
+      LOG.warn("No index found for mail box [id:{}, name:{}], error: {}", mb.id, mb.name, e.getMessage());
+      return Optional.empty();
+    } catch (Exception e) {
+      LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
+      return Optional.empty();
+    }
+  }
+
   public IndexWriterConfig getWriterConfig() {
-    IndexWriterConfig cfg = new IndexWriterConfig(version, analyzer);
-    return cfg;
+    return new IndexWriterConfig(version, analyzer);
   }
 
   public Directory getIndexDir(Mailbox mb) throws IOException {
@@ -282,18 +305,13 @@ public class IndexingService implements Managed {
     return analyzer;
   }
 
-  public IndexReader getOrOpenReader(Mailbox mb) {
-    return this.indexReaders.computeIfAbsent(mb, (k) -> {
-      try {
-        return DirectoryReader.open(getIndexDir(k));
-      } catch (NoSuchDirectoryException e) {
-        LOG.warn("No index found for mail box [id:{}, name:{}], error: {}", mb.id, mb.name, e.getMessage());
-        return null;
-      } catch (Exception e) {
-        LOG.error("Error retrieving dir for mailbox : {}", mb.name, e);
-        return null;
-      }
-    });
+  public Optional<IndexReader> getOrOpenReader(Mailbox mb) {
+    try {
+      return this.indexReaders.get(mb);
+    } catch (ExecutionException e) {
+      LOG.error("Error retrieving index reader for mailbox {}", mb.name, e);
+      return Optional.empty();
+    }
   }
 
 }
