@@ -76,7 +76,11 @@ public class SearchService {
 
   private IndexReader getReader(User user, List<Integer> mbIds) {
     Collection<Mailbox> mbs = userService.getMailboxes(user, mbIds);
-    List<IndexReader> list = mbs.stream().map((mb) -> indexingService.getOrOpenReader(mb)).filter((r) -> r != null).collect(Collectors.toList());
+    List<IndexReader> list = mbs.stream()
+        .map((mb) -> indexingService.getOrOpenReader(mb))
+        .filter((m) -> m.isPresent())
+        .map((m) -> m.get())
+        .collect(Collectors.toList());
     return new MultiReader(list.toArray(new IndexReader[list.size()]), false);
   }
 

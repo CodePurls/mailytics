@@ -210,7 +210,6 @@ public class MailIndexer {
     public abstract void retrieveValue(RESTMail mail, Document doc);
   }
 
-  private static final ThreadLocal<Document> TL_DOC = ThreadLocal.withInitial(() -> createDocument());
   private static final Logger                LOG    = LoggerFactory.getLogger("mail-indexer");
 
   public static void setValue(Field f, String value) {
@@ -228,7 +227,7 @@ public class MailIndexer {
   }
 
   public static Document prepareDocument(Mailbox mb, Mail mail) {
-    Document document = TL_DOC.get();
+    Document document = createDocument();
     Arrays.stream(MailSchema.STATIC_FIELDS).forEach(mf -> {
       try {
         mf.setFieldValues(document, mail);
@@ -249,7 +248,6 @@ public class MailIndexer {
         continue;
       }
       try {
-        // TODO: Cleanup un-common header values to prevent cross document pollution.
         boolean found = false;
         for (IndexableField f : document.getFields(name)) {
           setValue((Field) f, value);
@@ -260,8 +258,6 @@ public class MailIndexer {
           document.add(new SortedDocValuesField(name, new BytesRef(value)));
         }
       } catch (Exception e) {
-        LOG.error("Error indexing header: {} -> {}", name, value, e);
-      } catch (Throwable e) {
         LOG.error("Error indexing header: {} -> {}", name, value, e);
       }
     }
