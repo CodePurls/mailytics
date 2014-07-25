@@ -181,8 +181,10 @@ public class IndexingService implements Managed {
     this.mboxQueue = new ArrayBlockingQueue<>(1);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
     this.userIndices = new ConcurrentHashMap<>();
-    this.indexReaders = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS).softValues()
-        .removalListener((r) -> LOG.info("Unloading index reader for mailbox: {}", r.getKey().toString()))
+    this.indexReaders = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS)
+        .expireAfterWrite(60, TimeUnit.SECONDS)
+        .softValues()
+        .removalListener((r) -> LOG.info("Unloading index reader for mailbox: {}", ((Mailbox)r.getKey()).name))
         .build(new CacheLoader<Mailbox, Optional<IndexReader>>() {
           public Optional<IndexReader> load(Mailbox mb) throws Exception {
             LOG.info("Loading index reader for mailbox: {}", mb.name);
