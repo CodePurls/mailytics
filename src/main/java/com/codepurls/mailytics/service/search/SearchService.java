@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.queries.mlt.MoreLikeThisQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
@@ -43,12 +44,17 @@ public class SearchService {
   }
 
   public Page<RESTMail> search(User user, Request req) {
-    if (req.mailboxIds == null || req.mailboxIds.isEmpty()) {
-      req.mailboxIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
-    }
-    QueryParser qp = newQueryParser();
     try {
-      Query q = StringUtils.isBlank(req.query) ? new MatchAllDocsQuery() : qp.parse(req.query);
+      Query q;
+      if (req.similarFields != null) {
+        MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(), MailSchema.subject.name());
+        mlt.setMinDocFreq(0);
+        mlt.setMinTermFrequency(0);
+        q = mlt;
+      } else {
+        QueryParser qp = newQueryParser();
+        q = StringUtils.isBlank(req.query) ? new MatchAllDocsQuery() : qp.parse(req.query);
+      }
       IndexReader reader = getReader(user, req.mailboxIds);
       IndexSearcher searcher = new IndexSearcher(reader);
       SortType srt = req.sort;
@@ -76,10 +82,7 @@ public class SearchService {
 
   private IndexReader getReader(User user, List<Integer> mbIds) {
     Collection<Mailbox> mbs = userService.getMailboxes(user, mbIds);
-    List<IndexReader> list = mbs.stream()
-        .map((mb) -> indexingService.getOrOpenReader(mb))
-        .filter((m) -> m.isPresent())
-        .map((m) -> m.get())
+    List<IndexReader> list = mbs.stream().map((mb) -> indexingService.getOrOpenReader(mb)).filter((m) -> m.isPresent()).map((m) -> m.get())
         .collect(Collectors.toList());
     return new MultiReader(list.toArray(new IndexReader[list.size()]), false);
   }

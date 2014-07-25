@@ -4,6 +4,7 @@ import io.dropwizard.auth.Auth;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -19,6 +20,7 @@ import com.codepurls.mailytics.data.search.Request.SortDirecton;
 import com.codepurls.mailytics.data.search.Request.SortType;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.search.SearchService;
+import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 
 @Produces(MediaType.APPLICATION_JSON)
@@ -27,12 +29,15 @@ public class SearchAPI {
   private static final String PARAM_PAGE         = "page";
   private static final String PARAM_SORT         = "sort";
   private static final String PARAM_SORT_DIR     = "sort_dir";
+  private static final String PARAM_MLT_FIELDS   = "mlt_fields";
   private static final String PARAM_SIZE         = "size";
   private static final String PARAM_DEFAULT_PAGE = "1";
   private static final String PARAM_DEFAULT_SIZE = "10";
 
   @Context
   private SearchService       searchService;
+  @Context
+  private UserService         userService;
 
   @Auth(required = false)
   private User                user;
@@ -54,6 +59,9 @@ public class SearchAPI {
   @QueryParam(PARAM_SORT_DIR)
   public String               sortDir;
 
+  @QueryParam(PARAM_MLT_FIELDS)
+  public String               moreLikeThisFields;
+
   @GET
   @Path("/")
   public Response searchAll() {
@@ -74,6 +82,12 @@ public class SearchAPI {
     r.pageSize = size;
     r.sort = StringUtils.isBlank(sort) ? SortType.DATE : SortType.valueOf(sort.toUpperCase());
     r.sortDir = StringUtils.isBlank(sortDir) ? SortDirecton.ASC : SortDirecton.valueOf(sortDir.toUpperCase());
+    if (r.mailboxIds == null || r.mailboxIds.isEmpty()) {
+      r.mailboxIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
+    }
+    if (!StringUtils.isBlank(moreLikeThisFields)) {
+      r.similarFields = StringUtils.parseCSV(moreLikeThisFields);
+    }
     return r;
   }
 }

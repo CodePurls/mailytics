@@ -44,5 +44,6 @@ public class Request {
   public long          startTime  = -1;
   public long          endTime    = -1;
   public List<Integer> mailboxIds = Collections.emptyList();
+  public List<String>  similarFields;
 
 }
