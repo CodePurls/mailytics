@@ -10,6 +10,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 
 import com.codepurls.mailytics.data.search.Request;
+import com.codepurls.mailytics.data.search.Request.Resolution;
 import com.codepurls.mailytics.data.search.Request.SortDirecton;
 import com.codepurls.mailytics.data.search.Request.SortType;
 import com.codepurls.mailytics.data.security.User;
@@ -25,6 +26,7 @@ public class APIBase {
   protected static final String PARAM_SIZE         = "size";
   protected static final String PARAM_DEFAULT_PAGE = "1";
   protected static final String PARAM_DEFAULT_SIZE = "10";
+  protected static final String PARAM_RESOLUTION   = "res";
 
   @Context
   protected UserService         userService;
@@ -44,13 +46,16 @@ public class APIBase {
   protected int                 page;
 
   @QueryParam(PARAM_SORT)
-  protected String               sort;
+  protected String              sort;
 
   @QueryParam(PARAM_SORT_DIR)
-  protected String               sortDir;
+  protected String              sortDir;
 
   @QueryParam(PARAM_MLT_FIELDS)
-  protected String               moreLikeThisFields;
+  protected String              moreLikeThisFields;
+
+  @QueryParam(PARAM_RESOLUTION)
+  protected String              facetResolution;
 
   protected Request createRequest(List<Integer> mbIds) {
     Request r = new Request();
@@ -66,6 +71,7 @@ public class APIBase {
     if (!StringUtils.isBlank(moreLikeThisFields)) {
       r.similarFields = StringUtils.parseCSV(moreLikeThisFields);
     }
+    r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
     return r;
   }
 

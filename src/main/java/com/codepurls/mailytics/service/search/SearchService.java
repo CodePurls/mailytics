@@ -52,25 +52,14 @@ public class SearchService {
   public Page<RESTMail> search(User user, Request req) {
     try {
       Query q;
-      boolean blankQuery = StringUtils.isBlank(req.query);
-      if(!blankQuery) {
+      if(!StringUtils.isBlank(req.query)) {
         long queryHash = Hashing.sha512().hashString(req.query, Charsets.UTF_8).asLong();
         StoredQuery query = queryLog.findByHash(queryHash);
         if(query == null) {
           queryLog.log(queryHash, req.query);
         }
       }
-      if (blankQuery) {
-        q = new MatchAllDocsQuery();
-      } else if (req.similarFields != null) {
-        MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(),
-            MailSchema.subject.name());
-        mlt.setMinDocFreq(0);
-        mlt.setMinTermFrequency(0);
-        q = mlt;
-      } else {
-        q = newQueryParser().parse(req.query);
-      }
+      q = getQuery(req);
       IndexReader reader = getReader(user, req.mailboxIds);
       IndexSearcher searcher = new IndexSearcher(reader);
       SortType srt = req.sort;
@@ -96,7 +85,24 @@ public class SearchService {
     return Page.empty();
   }
 
-  private IndexReader getReader(User user, List<Integer> mbIds) {
+  public Query getQuery(Request req) throws ParseException {
+    Query q;
+    boolean blankQuery = StringUtils.isBlank(req.query);
+    if (blankQuery) {
+      q = new MatchAllDocsQuery();
+    } else if (req.similarFields != null) {
+      MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(),
+          MailSchema.subject.name());
+      mlt.setMinDocFreq(0);
+      mlt.setMinTermFrequency(0);
+      q = mlt;
+    } else {
+      q = newQueryParser().parse(req.query);
+    }
+    return q;
+  }
+
+  public IndexReader getReader(User user, List<Integer> mbIds) {
     Collection<Mailbox> mbs = userService.getMailboxes(user, mbIds);
     List<IndexReader> list = mbs.stream().map((mb) -> indexingService.getOrOpenReader(mb)).filter((m) -> m.isPresent()).map((m) -> m.get())
         .collect(Collectors.toList());
@@ -106,5 +112,4 @@ public class SearchService {
   private QueryParser newQueryParser() {
     return new QueryParser(indexingService.getVersion(), MailSchema.contents.name(), indexingService.getAnalyzer());
   }
-
 }

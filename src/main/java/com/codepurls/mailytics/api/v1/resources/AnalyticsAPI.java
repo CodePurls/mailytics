@@ -1,5 +1,7 @@
 package com.codepurls.mailytics.api.v1.resources;
 
+import java.io.IOException;
+
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -7,13 +9,17 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.apache.lucene.queryparser.classic.ParseException;
+
 import com.codepurls.mailytics.service.search.AnalyticsService;
+
+import edu.emory.mathcs.backport.java.util.Collections;
 
 @Produces(MediaType.APPLICATION_JSON)
 public class AnalyticsAPI extends APIBase{
 
   @Context
-  private AnalyticsService searchService;
+  private AnalyticsService analyticsService;
 
   @GET
   @Path("entities")
@@ -27,10 +33,11 @@ public class AnalyticsAPI extends APIBase{
     return Response.ok().build();
   }
 
+  @SuppressWarnings("unchecked")
   @GET
   @Path("trend")
-  public Response getTrend() {
-    return Response.ok().build();
+  public Response getTrend() throws ParseException, IOException {
+    return Response.ok(analyticsService.getTrend(user, createRequest(Collections.emptyList()))).build();
   }
 
   @GET

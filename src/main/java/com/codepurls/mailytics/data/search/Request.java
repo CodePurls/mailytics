@@ -1,5 +1,7 @@
 package com.codepurls.mailytics.data.search;
 
+import java.time.Instant;
+import java.time.temporal.ChronoField;
 import java.util.Collections;
 import java.util.List;
 
@@ -8,6 +10,36 @@ import org.apache.lucene.search.SortField.Type;
 import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 
 public class Request {
+  public enum Resolution {
+    YEAR {
+      public long translate(long ts) {
+        return Instant.ofEpochSecond(ts).get(ChronoField.YEAR);
+      }
+    },
+    MONTH {
+      public long translate(long ts) {
+        return Instant.ofEpochSecond(ts).get(ChronoField.MONTH_OF_YEAR);
+      }
+    },
+    DAY {
+      public long translate(long ts) {
+        return Instant.ofEpochSecond(ts).get(ChronoField.DAY_OF_MONTH);
+      }
+    },
+    HOUR {
+      public long translate(long ts) {
+        return Instant.ofEpochSecond(ts).get(ChronoField.HOUR_OF_DAY);
+      }
+    },
+    MINUTE {
+      public long translate(long ts) {
+        return Instant.ofEpochSecond(ts).get(ChronoField.MINUTE_OF_DAY);
+      }
+    };
+
+    public abstract long translate(long ts);
+  }
+
   public enum SortType {
     DATE(MailSchema.date, Type.LONG), FROM(MailSchema.from), TO(MailSchema.to), SUBJECT(MailSchema.subject);
 
@@ -45,5 +77,6 @@ public class Request {
   public long          endTime    = -1;
   public List<Integer> mailboxIds = Collections.emptyList();
   public List<String>  similarFields;
+  public Resolution    resolution = Resolution.DAY;
 
 }
