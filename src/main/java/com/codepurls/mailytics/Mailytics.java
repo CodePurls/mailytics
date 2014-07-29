@@ -18,6 +18,7 @@ import com.codepurls.mailytics.service.EventLogService;
 import com.codepurls.mailytics.service.dao.EventLogDao;
 import com.codepurls.mailytics.service.dao.UserDao;
 import com.codepurls.mailytics.service.index.IndexingService;
+import com.codepurls.mailytics.service.search.AnalyticsService;
 import com.codepurls.mailytics.service.search.SearchService;
 import com.codepurls.mailytics.service.security.UserService;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -46,13 +47,15 @@ public class Mailytics extends Application<Config> {
     UserService userService = new UserService(eventLogService, dbi.onDemand(UserDao.class));
     IndexingService indexingService = new IndexingService(cfg.index, userService);
     SearchService searchService = new SearchService(indexingService, userService);
+    AnalyticsService analyticsService = new AnalyticsService(searchService, userService);
     env.lifecycle().manage(indexingService);
     configureJersey(env);
-    configureAPI(cfg, env, userService, indexingService, searchService);
+    configureAPI(cfg, env, userService, indexingService, searchService, analyticsService);
 
     instance = this;
   }
-  public static class ServiceInjector<T> extends LazySingletonContextProvider<T>{
+
+  public static class ServiceInjector<T> extends LazySingletonContextProvider<T> {
     private T service;
 
     @SuppressWarnings("unchecked")
@@ -65,12 +68,15 @@ public class Mailytics extends Application<Config> {
       return service;
     }
   }
-  private void configureAPI(Config cfg, Environment env, UserService userService, IndexingService indexingService, SearchService searchService) {
+
+  private void configureAPI(Config cfg, Environment env, UserService userService, IndexingService indexingService, SearchService searchService,
+      AnalyticsService analyticsService) {
     env.jersey().register(V1.class);
     env.jersey().register(new OAuthProvider<>(new MailyticsAuthenticator(indexingService.getUserService()), "mailytics.com"));
     env.jersey().register(new ServiceInjector<>(searchService));
     env.jersey().register(new ServiceInjector<>(userService));
     env.jersey().register(new ServiceInjector<>(indexingService));
+    env.jersey().register(new ServiceInjector<>(analyticsService));
     env.servlets().addFilter("CORSFilter", new CORSFilter(cfg.cors));
   }
 

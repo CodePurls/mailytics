@@ -3,23 +3,17 @@ package com.codepurls.mailytics.api.v1.resources;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
-import com.codepurls.mailytics.service.search.SearchService;
-import com.codepurls.mailytics.service.security.UserService;
+import com.codepurls.mailytics.service.search.AnalyticsService;
 
 @Produces(MediaType.APPLICATION_JSON)
-public class AnalyticsAPI {
+public class AnalyticsAPI extends APIBase{
 
-  @QueryParam("q")
-  public String         query;
   @Context
-  private SearchService searchService;
-  @Context
-  private UserService   userService;
+  private AnalyticsService searchService;
 
   @GET
   @Path("entities")
