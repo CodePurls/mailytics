@@ -54,12 +54,12 @@ public class ManagementAPI {
 
   @Path("mailboxes/index")
   @PUT
-  public Response indexAll() {
+  public Response indexAll(SecureToken token) {
     Collection<Mailbox> mailboxes = userService.getMailboxes(user);
     List<String> messages = new ArrayList<>(mailboxes.size());
     for (Mailbox mailbox : mailboxes) {
       userService.updateMailboxStatus(mailbox, MailboxStatus.NEW);
-      Response response = scheduleIndex(mailbox.id);
+      Response response = scheduleIndex(mailbox.id, token);
       if (response.getStatus() != Status.OK.getStatusCode()) {
         messages.add(((Errors) response.getEntity()).errors.get(0).message);
       } else {
@@ -69,9 +69,13 @@ public class ManagementAPI {
     return Response.ok(messages).build();
   }
 
+  public static class SecureToken{
+    public String password;
+  }
+  
   @Path("mailboxes/{id}/index")
   @PUT
-  public Response scheduleIndex(@PathParam("id") int mailboxId) {
+  public Response scheduleIndex(@PathParam("id") int mailboxId, SecureToken token) {
     user = userService.validate(user);
     Mailbox mb = userService.getMailbox(user, mailboxId);
     if (mb == null) { return mbNotfoundResponse(mailboxId); }
@@ -79,6 +83,7 @@ public class ManagementAPI {
       Errors errors = Errors.addTopLevelError(format("Mailbox with id %d is already indexed", mailboxId));
       return Response.status(Status.NOT_MODIFIED).entity(errors).build();
     }
+    mb.password = token.password;
     mb.user = user;
     indexingService.index(mb);
     return Response.ok(format("{ \"status\": \"Mailbox '%s' scheduled for indexing\"}", mb.name)).build();

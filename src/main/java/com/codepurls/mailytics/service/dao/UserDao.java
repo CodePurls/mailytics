@@ -15,6 +15,7 @@ import org.skife.jdbi.v2.tweak.ResultSetMapper;
 
 import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.data.core.Mailbox.MailboxStatus;
+import com.codepurls.mailytics.data.core.Mailbox.Server;
 import com.codepurls.mailytics.data.core.Mailbox.Type;
 import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.dao.UserDao.MailboxMapper;
@@ -47,12 +48,19 @@ public interface UserDao {
       mb.totalMails = r.getInt("num_messages");
       mb.lastFolderRead = r.getInt("last_folder_read");
       mb.lastMessageRead = r.getInt("last_message_read");
+      mb.username = r.getString("username");
+      Server incoming = new Server();
+      incoming.host = r.getString("incoming_server_host");
+      incoming.port = r.getString("incoming_server_port");
+      incoming.protocol = r.getString("incoming_server_protocol");
+      mb.incomingServer = incoming;
       mb.status = MailboxStatus.valueOf(r.getString("status"));
       return mb;
     }
   }
 
-  @SqlUpdate("INSERT INTO mailbox (name, type, location, userid) VALUES (:mb.name, :mb.type, :mb.mailLocation, :mb.userId) ")
+  @SqlUpdate("INSERT INTO mailbox (name, type, location, userid, username, incoming_server_host, incoming_server_port, incoming_server_protocol)"
+      + " VALUES (:mb.name,:mb.type,:mb.mailLocation,:mb.userId,:mb.username, :mb.incomingHost,:mb.incomingPort,:mb.incomingProtocol) ")
   @GetGeneratedKeys
   int createMailbox(@BindBean("mb") Mailbox mb);
 

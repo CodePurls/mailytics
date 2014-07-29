@@ -7,6 +7,7 @@ import javax.validation.constraints.NotNull;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.service.ingest.IMAPReader;
 import com.codepurls.mailytics.service.ingest.MBoxReader;
 import com.codepurls.mailytics.service.ingest.MailReader;
 import com.codepurls.mailytics.service.ingest.MailReader.MailVisitor;
@@ -16,12 +17,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class Mailbox {
   public enum Type {
-    PST, MBOX// , OWA, IMAP, POP
+    PST, MBOX, IMAP// , OWA, POP
   }
 
   public static class Server {
-    public String  name, description;
-    public Integer port;
+    public String name, description, host, protocol, port;
   }
 
   public enum MailboxStatus {
@@ -32,13 +32,13 @@ public class Mailbox {
   public long                  size;
   public int                   totalFolders, totalMails;
   public int                   lastFolderRead, lastMessageRead;
-  public MailboxStatus                status;
+  public MailboxStatus         status;
 
   @NotEmpty(message = "is required")
   public String                name;
   @NotNull(message = "is required")
   public Type                  type;
-  @NotEmpty(message = "is required")
+
   public String                mailLocation;
 
   public User                  user;
@@ -52,6 +52,8 @@ public class Mailbox {
       reader = new PSTReader();
     } else if (type == Type.MBOX) {
       reader = new MBoxReader();
+    } else if (type == Type.IMAP) {
+      reader = new IMAPReader(this);
     }
     reader.visit(context, getMailLocation(), visitor);
   }
@@ -71,6 +73,25 @@ public class Mailbox {
   @JsonIgnore
   public int getUserId() {
     return user.id;
+  }
+  
+  @JsonIgnore
+  public String getIncomingHost() {
+    return incomingServer.host;
+  }
+  
+  @JsonIgnore
+  public String getIncomingPort() {
+    return incomingServer.port;
+  }
+  
+  @JsonIgnore
+  public String getIncomingProtocol() {
+    return incomingServer.protocol;
+  }
+  
+  public String getUsername() {
+    return username;
   }
 
   @Override
@@ -104,7 +125,6 @@ public class Mailbox {
   }
 
   public void closeReader() throws IOException {
-    if(this.reader != null)
-      this.reader.close();
+    if (this.reader != null) this.reader.close();
   }
 }
