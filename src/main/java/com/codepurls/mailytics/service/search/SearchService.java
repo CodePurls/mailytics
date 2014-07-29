@@ -26,34 +26,50 @@ import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.SortDirecton;
 import com.codepurls.mailytics.data.search.Request.SortType;
+import com.codepurls.mailytics.data.search.StoredQuery;
 import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.service.dao.QueryLogDao;
 import com.codepurls.mailytics.service.index.IndexingService;
 import com.codepurls.mailytics.service.index.MailIndexer;
 import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
+import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 
 public class SearchService {
   private static final Logger   LOG = LoggerFactory.getLogger("SearchService");
   private final UserService     userService;
   private final IndexingService indexingService;
+  private final QueryLogDao     queryLog;
 
-  public SearchService(IndexingService indexingService, UserService userService) {
+  public SearchService(IndexingService indexingService, UserService userService, QueryLogDao queryLog) {
     this.indexingService = indexingService;
     this.userService = userService;
+    this.queryLog = queryLog;
   }
 
   public Page<RESTMail> search(User user, Request req) {
     try {
       Query q;
-      if (req.similarFields != null) {
-        MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(), MailSchema.subject.name());
+      boolean blankQuery = StringUtils.isBlank(req.query);
+      if(!blankQuery) {
+        long queryHash = Hashing.sha512().hashString(req.query, Charsets.UTF_8).asLong();
+        StoredQuery query = queryLog.findByHash(queryHash);
+        if(query == null) {
+          queryLog.log(queryHash, req.query);
+        }
+      }
+      if (blankQuery) {
+        q = new MatchAllDocsQuery();
+      } else if (req.similarFields != null) {
+        MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(),
+            MailSchema.subject.name());
         mlt.setMinDocFreq(0);
         mlt.setMinTermFrequency(0);
         q = mlt;
       } else {
-        QueryParser qp = newQueryParser();
-        q = StringUtils.isBlank(req.query) ? new MatchAllDocsQuery() : qp.parse(req.query);
+        q = newQueryParser().parse(req.query);
       }
       IndexReader reader = getReader(user, req.mailboxIds);
       IndexSearcher searcher = new IndexSearcher(reader);

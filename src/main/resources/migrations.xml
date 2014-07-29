@@ -5,4 +5,5 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
 	<include file="db-changesets/initial-ddl.xml" relativeToChangelogFile="true" />
 	<include file="db-changesets/mailbox-ddl.xml" relativeToChangelogFile="true" />
+	<include file="db-changesets/querylog-ddl.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
