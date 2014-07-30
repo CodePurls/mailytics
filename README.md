@@ -2,7 +2,7 @@ mailytics - EMail Analytics
 =========
 
 Over the years, people have accumulated hundreds of thousands of emails from different organizations and mail services.
-Mailyics aims to liberate those emails from different types of proprietory services, tools and stores to one central place for search and analytics.
+Mailyics aims to liberate those emails from different types of proprietary services, tools and stores to one central place for search and analytics.
 
 
 
@@ -13,7 +13,7 @@ See Project Wiki - https://github.com/CodePurls/mailytics/wiki
 Building & Running
 --------
     mvn clean package
-    java -jar malytics.jar
+    java -jar mailytics.jar
 
 Dependencies
 ------------

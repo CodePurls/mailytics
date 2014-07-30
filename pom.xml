@@ -10,8 +10,7 @@
   <javamail.version>1.5.2</javamail.version>
   <mstor.version>0.9.13</mstor.version>
   <junit.version>4.11</junit.version>
-<!--   <java-libpst.version>0.7</java-libpst.version> -->
-  <java-libpst.version>1.0-SNAPSHOT</java-libpst.version>
+  <java-libpst.version>0.8.1</java-libpst.version>
   <jdk.version>1.8</jdk.version>
   <h2.version>1.4.179</h2.version>
   <lucene.version>4.9.0</lucene.version>
@@ -68,6 +67,11 @@
    <version>${lucene.version}</version>
   </dependency>
   <dependency>
+   <artifactId>lucene-facet</artifactId>
+   <groupId>org.apache.lucene</groupId>
+   <version>${lucene.version}</version>
+  </dependency>
+  <dependency>
    <groupId>junit</groupId>
    <artifactId>junit</artifactId>
    <version>${junit.version}</version>
@@ -97,6 +101,12 @@
    <artifactId>java-libpst</artifactId>
    <version>${java-libpst.version}</version>
   </dependency>
+  <dependency>
+   <groupId>net.sf.trove4j</groupId>
+   <artifactId>trove4j</artifactId>
+   <version>3.0.3</version>
+  </dependency>
+
  </dependencies>
  <build>
   <plugins>

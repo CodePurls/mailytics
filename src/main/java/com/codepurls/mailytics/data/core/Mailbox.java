@@ -41,6 +41,7 @@ public class Mailbox {
 
   public String                mailLocation;
 
+  @JsonIgnore
   public User                  user;
   public String                fullName, description, email, username, password;
   public Server                incomingServer, outgoingServer;
@@ -77,16 +78,22 @@ public class Mailbox {
   
   @JsonIgnore
   public String getIncomingHost() {
+    if(incomingServer == null)
+      return null;
     return incomingServer.host;
   }
   
   @JsonIgnore
   public String getIncomingPort() {
+    if(incomingServer == null)
+      return null;
     return incomingServer.port;
   }
   
   @JsonIgnore
   public String getIncomingProtocol() {
+    if(incomingServer == null)
+      return null;
     return incomingServer.protocol;
   }
   

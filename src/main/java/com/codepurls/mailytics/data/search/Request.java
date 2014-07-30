@@ -8,6 +8,36 @@ import org.apache.lucene.search.SortField.Type;
 import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 
 public class Request {
+  public enum Resolution {
+    YEAR {
+      public long toMillis() {
+        return 365 * MONTH.toMillis();
+      }
+    },
+    MONTH {
+      public long toMillis() {
+        return 30 * DAY.toMillis();
+      }
+    },
+    DAY {
+      public long toMillis() {
+        return 24 * HOUR.toMillis();
+      }
+    },
+    HOUR {
+      public long toMillis() {
+        return 60 * MINUTE.toMillis();
+      }
+    },
+    MINUTE {
+      public long toMillis() {
+        return 60 * 1000;
+      }
+    };
+
+    public abstract long toMillis();
+  }
+
   public enum SortType {
     DATE(MailSchema.date, Type.LONG), FROM(MailSchema.from), TO(MailSchema.to), SUBJECT(MailSchema.subject);
 
@@ -45,5 +75,7 @@ public class Request {
   public long          endTime    = -1;
   public List<Integer> mailboxIds = Collections.emptyList();
   public List<String>  similarFields;
+  public Resolution    resolution = Resolution.DAY;
+  public MailSchema    trendField = MailSchema.date;
 
 }
