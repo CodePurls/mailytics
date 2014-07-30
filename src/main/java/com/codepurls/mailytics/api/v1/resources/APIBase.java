@@ -19,6 +19,7 @@ import com.codepurls.mailytics.data.search.Request.Resolution;
 import com.codepurls.mailytics.data.search.Request.SortDirecton;
 import com.codepurls.mailytics.data.search.Request.SortType;
 import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 
@@ -34,6 +35,7 @@ public class APIBase {
   protected static final String PARAM_DEFAULT_PAGE = "1";
   protected static final String PARAM_DEFAULT_SIZE = "10";
   protected static final String PARAM_RESOLUTION   = "res";
+  protected static final String PARAM_FACET_FIELD  = "trend_field";
 
   @Context
   protected UserService         userService;
@@ -69,6 +71,9 @@ public class APIBase {
   @QueryParam(PARAM_RESOLUTION)
   protected String              facetResolution;
 
+  @QueryParam(PARAM_FACET_FIELD)
+  protected String              trendField;
+
   protected Request createRequest(List<Integer> mbIds) {
     Request r = new Request();
     r.mailboxIds = mbIds;
@@ -76,14 +81,14 @@ public class APIBase {
     r.pageNum = page;
     r.pageSize = size;
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
-    if(StringUtils.isBlank(startDateStr)) {
+    if (StringUtils.isBlank(startDateStr)) {
       r.startTime = new Date(0L).getTime();
-    }else {
+    } else {
       r.startTime = LocalDate.parse(startDateStr, formatter).atTime(LocalTime.of(0, 0)).toInstant(ZoneOffset.MIN).toEpochMilli();
     }
-    if(StringUtils.isBlank(endDateStr)) {
+    if (StringUtils.isBlank(endDateStr)) {
       r.endTime = new Date().getTime();
-    }else {
+    } else {
       r.endTime = LocalDate.parse(endDateStr, formatter).atTime(LocalTime.of(0, 0)).toInstant(ZoneOffset.MIN).toEpochMilli();
     }
     r.sort = StringUtils.isBlank(sort) ? SortType.DATE : SortType.valueOf(sort.toUpperCase());
@@ -96,6 +101,9 @@ public class APIBase {
     }
     if (!StringUtils.isBlank(facetResolution)) {
       r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
+    }
+    if(!StringUtils.isBlank(trendField)) {
+      r.trendField = MailSchema.valueOf(trendField.toLowerCase());
     }
     return r;
   }

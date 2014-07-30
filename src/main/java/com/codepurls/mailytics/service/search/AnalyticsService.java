@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
 import com.codepurls.mailytics.data.security.User;
-import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 import com.codepurls.mailytics.service.security.UserService;
 
 public class AnalyticsService {
@@ -36,31 +35,47 @@ public class AnalyticsService {
     this.userService = userService;
   }
 
-  public Map<Long, Integer> getTrend(User user, Request req) throws ParseException, IOException {
+  /**
+   * TODO: Facets are based on DocValue fields and not on separate taxonomy index, this will be slower but will take
+   * much less memory. Provide option to support hierarchical facets support and add taxonomy index based faceting.
+   * 
+   * @param user
+   * @param req
+   * @return
+   * @throws ParseException
+   * @throws IOException
+   */
+  public Map<String, Integer> getTrend(User user, Request req) throws ParseException, IOException {
     user = userService.validate(user);
-    IndexReader reader = searchService.getReader(user, req.mailboxIds);
-    Resolution res = req.resolution;
-    FacetsCollector fc = new FacetsCollector();
-    List<LongRange> rangeList = new ArrayList<>();
-    rangeList.add(new LongRange(format("< %s-%s", res.name(), new Date(req.startTime)), 0, true, req.startTime, true));
-    for (long l = req.startTime; l < req.endTime; l+= res.toMillis()) {
-      rangeList.add(new LongRange(format("%s-%s", res.name(), new Date(l)), l, true, l + res.toMillis(), true));
+    Facets facets = runFacetedSearch(req, user);
+    FacetResult result = facets.getTopChildren(10, req.trendField.name());
+    Map<String, Integer> countsByRes = new TreeMap<>();
+    for (LabelAndValue labelAndValue : result.labelValues) {
+      countsByRes.put(labelAndValue.label, labelAndValue.value.intValue());
     }
-    rangeList.add(new LongRange(format("> %s-%s", res.name(), new Date(req.endTime)), req.endTime, true, Long.MAX_VALUE, true));
+    return countsByRes;
+  }
 
+  private Facets runFacetedSearch(Request req, User user) throws IOException, ParseException {
+    IndexReader reader = searchService.getReader(user, req.mailboxIds);
+    FacetsCollector fc = new FacetsCollector();
     Query query = searchService.getQuery(req);
     IndexSearcher searcher = new IndexSearcher(reader);
     FacetsCollector.search(searcher, query, req.pageSize, fc);
+    Facets facets = new LongRangeFacetCounts(req.trendField.name(), fc, buildRanges(req));
+    return facets;
+  }
 
-    LongRange[] ranges = rangeList.toArray(new LongRange[rangeList.size()]);
-    Facets facets = new LongRangeFacetCounts(MailSchema.date.name(), fc, ranges);
-
-    FacetResult result = facets.getTopChildren(10, MailSchema.date.name());
-    Map<Long, Integer> countsByRes = new TreeMap<>();
-    for (LabelAndValue labelAndValue : result.labelValues) {
-      System.out.println(labelAndValue.label + " => " + labelAndValue.value);
+  private LongRange[] buildRanges(Request req) {
+    List<LongRange> rangeList = new ArrayList<>();
+    Resolution res = req.resolution;
+    rangeList.add(new LongRange(format("%s or older", new Date(req.startTime)), 0, true, req.startTime, true));
+    for (long l = req.startTime; l < req.endTime; l += res.toMillis()) {
+      rangeList.add(new LongRange(format("%s", new Date(l)), l, true, l + res.toMillis(), true));
     }
-    return countsByRes;
+    rangeList.add(new LongRange(format("%s or newer", new Date(req.endTime)), req.endTime, true, Long.MAX_VALUE, true));
+    LongRange[] ranges = rangeList.toArray(new LongRange[rangeList.size()]);
+    return ranges;
   }
 
 }

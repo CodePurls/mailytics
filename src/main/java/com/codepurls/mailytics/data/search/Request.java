@@ -76,5 +76,6 @@ public class Request {
   public List<Integer> mailboxIds = Collections.emptyList();
   public List<String>  similarFields;
   public Resolution    resolution = Resolution.DAY;
+  public MailSchema    trendField = MailSchema.date;
 
 }
