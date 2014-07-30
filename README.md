@@ -13,7 +13,7 @@ See Project Wiki - https://github.com/CodePurls/mailytics/wiki
 Building & Running
 --------
     mvn clean package
-    java -jar maliytics.jar
+    java -jar mailytics.jar
 
 Dependencies
 ------------

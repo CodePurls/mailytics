@@ -1,7 +1,5 @@
 package com.codepurls.mailytics.data.search;
 
-import java.time.Instant;
-import java.time.temporal.ChronoField;
 import java.util.Collections;
 import java.util.List;
 
@@ -12,32 +10,32 @@ import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 public class Request {
   public enum Resolution {
     YEAR {
-      public long translate(long ts) {
-        return Instant.ofEpochSecond(ts).get(ChronoField.YEAR);
+      public long toMillis() {
+        return 365 * MONTH.toMillis();
       }
     },
     MONTH {
-      public long translate(long ts) {
-        return Instant.ofEpochSecond(ts).get(ChronoField.MONTH_OF_YEAR);
+      public long toMillis() {
+        return 30 * DAY.toMillis();
       }
     },
     DAY {
-      public long translate(long ts) {
-        return Instant.ofEpochSecond(ts).get(ChronoField.DAY_OF_MONTH);
+      public long toMillis() {
+        return 24 * HOUR.toMillis();
       }
     },
     HOUR {
-      public long translate(long ts) {
-        return Instant.ofEpochSecond(ts).get(ChronoField.HOUR_OF_DAY);
+      public long toMillis() {
+        return 60 * MINUTE.toMillis();
       }
     },
     MINUTE {
-      public long translate(long ts) {
-        return Instant.ofEpochSecond(ts).get(ChronoField.MINUTE_OF_DAY);
+      public long toMillis() {
+        return 60 * 1000;
       }
     };
 
-    public abstract long translate(long ts);
+    public abstract long toMillis();
   }
 
   public enum SortType {

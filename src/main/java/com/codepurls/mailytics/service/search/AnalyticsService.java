@@ -1,18 +1,24 @@
 package com.codepurls.mailytics.service.search;
 
-import gnu.trove.iterator.TLongIntIterator;
-import gnu.trove.map.hash.TLongIntHashMap;
+import static java.lang.String.format;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import org.apache.lucene.facet.FacetResult;
+import org.apache.lucene.facet.Facets;
+import org.apache.lucene.facet.FacetsCollector;
+import org.apache.lucene.facet.LabelAndValue;
+import org.apache.lucene.facet.range.LongRange;
+import org.apache.lucene.facet.range.LongRangeFacetCounts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
@@ -34,21 +40,25 @@ public class AnalyticsService {
     user = userService.validate(user);
     IndexReader reader = searchService.getReader(user, req.mailboxIds);
     Resolution res = req.resolution;
+    FacetsCollector fc = new FacetsCollector();
+    List<LongRange> rangeList = new ArrayList<>();
+    rangeList.add(new LongRange(format("< %s-%s", res.name(), new Date(req.startTime)), 0, true, req.startTime, true));
+    for (long l = req.startTime; l < req.endTime; l+= res.toMillis()) {
+      rangeList.add(new LongRange(format("%s-%s", res.name(), new Date(l)), l, true, l + res.toMillis(), true));
+    }
+    rangeList.add(new LongRange(format("> %s-%s", res.name(), new Date(req.endTime)), req.endTime, true, Long.MAX_VALUE, true));
+
     Query query = searchService.getQuery(req);
     IndexSearcher searcher = new IndexSearcher(reader);
-    TopDocs docs = searcher.search(query, req.pageSize);
-    TLongIntHashMap counts = new TLongIntHashMap();
-    for (ScoreDoc sd : docs.scoreDocs) {
-      long longValue = res.translate(searcher.doc(sd.doc).getField(MailSchema.date.name()).numericValue().longValue());
-      counts.adjustOrPutValue(longValue, 1, 1);
-    }
+    FacetsCollector.search(searcher, query, req.pageSize, fc);
+
+    LongRange[] ranges = rangeList.toArray(new LongRange[rangeList.size()]);
+    Facets facets = new LongRangeFacetCounts(MailSchema.date.name(), fc, ranges);
+
+    FacetResult result = facets.getTopChildren(10, MailSchema.date.name());
     Map<Long, Integer> countsByRes = new TreeMap<>();
-    TLongIntIterator iterator = counts.iterator();
-    while(iterator.hasNext()) {
-      iterator.advance();
-      long key = iterator.key();
-      int value = iterator.value();
-      countsByRes.put(key, value);
+    for (LabelAndValue labelAndValue : result.labelValues) {
+      System.out.println(labelAndValue.label + " => " + labelAndValue.value);
     }
     return countsByRes;
   }

@@ -2,6 +2,11 @@ package com.codepurls.mailytics.api.v1.resources;
 
 import io.dropwizard.auth.Auth;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +29,8 @@ public class APIBase {
   protected static final String PARAM_SORT_DIR     = "sort_dir";
   protected static final String PARAM_MLT_FIELDS   = "mlt_fields";
   protected static final String PARAM_SIZE         = "size";
+  protected static final String PARAM_START_DATE   = "start_date";
+  protected static final String PARAM_END_DATE     = "end_date";
   protected static final String PARAM_DEFAULT_PAGE = "1";
   protected static final String PARAM_DEFAULT_SIZE = "10";
   protected static final String PARAM_RESOLUTION   = "res";
@@ -40,6 +47,11 @@ public class APIBase {
   @DefaultValue(PARAM_DEFAULT_SIZE)
   @QueryParam(PARAM_SIZE)
   protected int                 size;
+
+  @QueryParam(PARAM_START_DATE)
+  protected String              startDateStr;
+  @QueryParam(PARAM_END_DATE)
+  protected String              endDateStr;
 
   @DefaultValue(PARAM_DEFAULT_PAGE)
   @QueryParam(PARAM_PAGE)
@@ -63,6 +75,17 @@ public class APIBase {
     r.query = query;
     r.pageNum = page;
     r.pageSize = size;
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+    if(StringUtils.isBlank(startDateStr)) {
+      r.startTime = new Date(0L).getTime();
+    }else {
+      r.startTime = LocalDate.parse(startDateStr, formatter).atTime(LocalTime.of(0, 0)).toInstant(ZoneOffset.MIN).toEpochMilli();
+    }
+    if(StringUtils.isBlank(endDateStr)) {
+      r.endTime = new Date().getTime();
+    }else {
+      r.endTime = LocalDate.parse(endDateStr, formatter).atTime(LocalTime.of(0, 0)).toInstant(ZoneOffset.MIN).toEpochMilli();
+    }
     r.sort = StringUtils.isBlank(sort) ? SortType.DATE : SortType.valueOf(sort.toUpperCase());
     r.sortDir = StringUtils.isBlank(sortDir) ? SortDirecton.ASC : SortDirecton.valueOf(sortDir.toUpperCase());
     if (r.mailboxIds == null || r.mailboxIds.isEmpty()) {
@@ -71,7 +94,9 @@ public class APIBase {
     if (!StringUtils.isBlank(moreLikeThisFields)) {
       r.similarFields = StringUtils.parseCSV(moreLikeThisFields);
     }
-    r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
+    if (!StringUtils.isBlank(facetResolution)) {
+      r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
+    }
     return r;
   }
 
