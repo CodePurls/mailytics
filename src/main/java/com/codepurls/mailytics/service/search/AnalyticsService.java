@@ -1,13 +1,10 @@
 package com.codepurls.mailytics.service.search;
 
-import static java.lang.String.format;
-
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import org.apache.lucene.facet.FacetResult;
 import org.apache.lucene.facet.Facets;
@@ -45,13 +42,13 @@ public class AnalyticsService {
    * @throws ParseException
    * @throws IOException
    */
-  public Map<String, Integer> getTrend(User user, Request req) throws ParseException, IOException {
+  public Map<Long, Integer> getTrend(User user, Request req) throws ParseException, IOException {
     user = userService.validate(user);
     Facets facets = runFacetedSearch(req, user);
     FacetResult result = facets.getTopChildren(10, req.trendField.name());
-    Map<String, Integer> countsByRes = new TreeMap<>();
+    Map<Long, Integer> countsByRes = new LinkedHashMap<>();
     for (LabelAndValue labelAndValue : result.labelValues) {
-      countsByRes.put(labelAndValue.label, labelAndValue.value.intValue());
+      countsByRes.put(Long.valueOf(labelAndValue.label), labelAndValue.value.intValue());
     }
     return countsByRes;
   }
@@ -69,11 +66,11 @@ public class AnalyticsService {
   private LongRange[] buildRanges(Request req) {
     List<LongRange> rangeList = new ArrayList<>();
     Resolution res = req.resolution;
-    rangeList.add(new LongRange(format("%s or older", new Date(req.startTime)), 0, true, req.startTime, true));
+    rangeList.add(new LongRange(Long.toString(req.startTime), 0, true, req.startTime, true));
     for (long l = req.startTime; l < req.endTime; l += res.toMillis()) {
-      rangeList.add(new LongRange(format("%s", new Date(l)), l, true, l + res.toMillis(), true));
+      rangeList.add(new LongRange(Long.toString(l), l, true, l + res.toMillis(), true));
     }
-    rangeList.add(new LongRange(format("%s or newer", new Date(req.endTime)), req.endTime, true, Long.MAX_VALUE, true));
+    rangeList.add(new LongRange(Long.toString(req.endTime), req.endTime, true, Long.MAX_VALUE, true));
     LongRange[] ranges = rangeList.toArray(new LongRange[rangeList.size()]);
     return ranges;
   }
