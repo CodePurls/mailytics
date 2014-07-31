@@ -1,6 +1,7 @@
 package com.codepurls.mailytics.api.v1.resources;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,8 +18,6 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.service.search.AnalyticsService;
 
-import edu.emory.mathcs.backport.java.util.Collections;
-
 @Produces(MediaType.APPLICATION_JSON)
 public class AnalyticsAPI extends APIBase{
 
@@ -33,11 +32,11 @@ public class AnalyticsAPI extends APIBase{
 
   @GET
   @Path("keywords")
-  public Response getKeywords() {
-    return Response.ok().build();
+  public Response getKeywords() throws ParseException, IOException {
+    Request request = createRequest(Collections.emptyList());
+    return Response.ok(analyticsService.findKeywords(user, request)).build();
   }
 
-  @SuppressWarnings("unchecked")
   @GET
   @Path("trend")
   public Response getTrend() throws ParseException, IOException {

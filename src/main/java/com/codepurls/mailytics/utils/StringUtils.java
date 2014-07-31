@@ -19,4 +19,7 @@ public class StringUtils {
   public static List<String> parseCSV(String moreLikeThisFields) {
     return Arrays.asList(CSV.split(moreLikeThisFields));
   }
+  public static Iterable<String> tokenize(String line, boolean removeStopwords) {
+    return null;
+  }
 }

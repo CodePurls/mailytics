@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.mlt.MoreLikeThisQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -100,6 +101,10 @@ public class SearchService {
       q = newQueryParser().parse(req.query);
     }
     return q;
+  }
+
+  public long getTermFrequency(String term, MailSchema fld, IndexReader reader) throws IOException {
+    return reader.totalTermFreq(new Term(fld.name(), term));
   }
 
   public IndexReader getReader(User user, List<Integer> mbIds) {
