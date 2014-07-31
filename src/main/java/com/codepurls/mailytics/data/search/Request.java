@@ -1,5 +1,9 @@
 package com.codepurls.mailytics.data.search;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 
@@ -9,33 +13,30 @@ import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 
 public class Request {
   public enum Resolution {
-    YEAR {
-      public long toMillis() {
-        return 365 * MONTH.toMillis();
-      }
-    },
-    MONTH {
-      public long toMillis() {
-        return 30 * DAY.toMillis();
-      }
-    },
-    DAY {
-      public long toMillis() {
-        return 24 * HOUR.toMillis();
-      }
-    },
-    HOUR {
-      public long toMillis() {
-        return 60 * MINUTE.toMillis();
-      }
-    },
-    MINUTE {
-      public long toMillis() {
-        return 60 * 1000;
-      }
-    };
+    //@formatter:off
+    MINUTE ("yyyy/MM/dd HH:mm", 60 * 1000),
+    HOUR("yyyy/MM/dd HH", 60 * MINUTE.toMillis()),
+    DAY("yyyy/MM/dd", 24 * HOUR.toMillis()),
+    MONTH("yyyy/MM", 30 * DAY.toMillis()),
+    YEAR("yyyy", 365 * MONTH.toMillis())
+    //@formatter:on
+    ;
 
-    public abstract long toMillis();
+    private final long              millis;
+    private final DateTimeFormatter formatter;
+
+    private Resolution(String format, long millis) {
+      this.millis = millis;
+      this.formatter = DateTimeFormatter.ofPattern(format);
+    }
+
+    public long toMillis() {
+      return this.millis;
+    }
+
+    public String format(Long ts) {
+      return formatter.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault()));
+    }
   }
 
   public enum SortType {
