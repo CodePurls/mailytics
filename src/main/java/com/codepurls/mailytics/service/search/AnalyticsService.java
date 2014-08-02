@@ -1,6 +1,7 @@
 package com.codepurls.mailytics.service.search;
 
 import static java.lang.String.format;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.hash.TIntHashSet;
 
 import java.io.FileNotFoundException;
@@ -9,9 +10,11 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Scanner;
 
 import org.apache.lucene.document.Document;
@@ -23,7 +26,9 @@ import org.apache.lucene.facet.range.LongRange;
 import org.apache.lucene.facet.range.LongRangeFacetCounts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -31,7 +36,9 @@ import org.apache.lucene.search.TopDocs;
 import com.codepurls.mailytics.data.search.Keywords;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
+import com.codepurls.mailytics.data.search.WordAndCount;
 import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 
@@ -69,33 +76,41 @@ public class AnalyticsService {
   public Keywords findKeywords(User user, Request request) throws ParseException, IOException {
     Path dumpFile = dumpSearchResults(user, request);
     Scanner scanner = new Scanner(dumpFile);
-    @SuppressWarnings("serial")
-    Map<String, Integer> pq = new LinkedHashMap<String, Integer>(request.pageSize) {
-      protected boolean removeEldestEntry(java.util.Map.Entry<String, Integer> eldest) {
-        return eldest.getValue() == 0;
-      }
-    };
+    TObjectIntHashMap<String> words = new TObjectIntHashMap<>();
     while (scanner.hasNextLine()) {
       String line = scanner.nextLine();
       for (String word : StringUtils.tokenize(line, /* Remove stop words */true)) {
-        Integer cnt = pq.get(word);
+        if (request.query.contains(word)) continue;
+        Integer cnt = words.get(word);
         if (cnt == null) {
           cnt = 1;
         } else {
           cnt++;
         }
-        pq.put(word, cnt);
+        words.put(word, cnt);
       }
     }
+    PriorityQueue<WordAndCount> pq = new PriorityQueue<>(new Comparator<WordAndCount>() {
+      public int compare(WordAndCount o1, WordAndCount o2) {
+        return Integer.compare(o2.count, o1.count);
+      }
+    });
+    words.forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
     scanner.close();
-    return null;
+    Keywords kw = new Keywords();
+    WordAndCount[] wc = new WordAndCount[request.pageSize];
+    for (int i = 0; i < wc.length; i++)
+      wc[i] = pq.poll();
+    kw.keywords = wc;
+    return kw;
   }
 
   private Path dumpSearchResults(User user, Request request) throws ParseException, IOException, FileNotFoundException {
     user = userService.validate(user);
     Query query = searchService.getQuery(request);
     IndexSearcher searcher = getSearcher(request, user);
-    TopDocs docs = searcher.search(query, request.pageSize);
+    Filter f = NumericRangeFilter.newLongRange(MailSchema.date.name(), request.startTime, request.endTime, true, true);
+    TopDocs docs = searcher.search(query, f, 10000);
     Path tempFile = Files.createTempFile(format("kw-%s-%s", user.id, request.keywordField), ".mailytics.temp");
     PrintWriter writer = new PrintWriter(tempFile.toFile());
     TIntHashSet dupSet = new TIntHashSet();
