@@ -36,6 +36,7 @@ public class APIBase {
   protected static final String PARAM_DEFAULT_SIZE = "10";
   protected static final String PARAM_RESOLUTION   = "res";
   protected static final String PARAM_FACET_FIELD  = "trend_field";
+  protected static final String PARAM_KW_FIELD  = "keyword_field";
 
   @Context
   protected UserService         userService;
@@ -74,6 +75,9 @@ public class APIBase {
   @QueryParam(PARAM_FACET_FIELD)
   protected String              trendField;
 
+  @QueryParam(PARAM_KW_FIELD)
+  protected String              keywordField;
+
   protected Request createRequest(List<Integer> mbIds) {
     Request r = new Request();
     r.mailboxIds = mbIds;
@@ -104,6 +108,9 @@ public class APIBase {
     }
     if(!StringUtils.isBlank(trendField)) {
       r.trendField = MailSchema.valueOf(trendField.toLowerCase());
+    }
+    if(!StringUtils.isBlank(keywordField)) {
+      r.keywordField = MailSchema.valueOf(keywordField.toLowerCase());
     }
     return r;
   }

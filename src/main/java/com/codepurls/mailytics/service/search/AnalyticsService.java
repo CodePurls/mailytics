@@ -1,11 +1,23 @@
 package com.codepurls.mailytics.service.search;
 
+import static java.lang.String.format;
+import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.set.hash.TIntHashSet;
+
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Scanner;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.FacetResult;
 import org.apache.lucene.facet.Facets;
 import org.apache.lucene.facet.FacetsCollector;
@@ -14,13 +26,21 @@ import org.apache.lucene.facet.range.LongRange;
 import org.apache.lucene.facet.range.LongRangeFacetCounts;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
+import com.codepurls.mailytics.data.search.Keywords;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
+import com.codepurls.mailytics.data.search.WordAndCount;
 import com.codepurls.mailytics.data.security.User;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
 import com.codepurls.mailytics.service.security.UserService;
+import com.codepurls.mailytics.utils.StringUtils;
 
 public class AnalyticsService {
 
@@ -53,14 +73,77 @@ public class AnalyticsService {
     return countsByRes;
   }
 
+  public Keywords findKeywords(User user, Request request) throws ParseException, IOException {
+    Path dumpFile = dumpSearchResults(user, request);
+    Scanner scanner = new Scanner(dumpFile);
+    TObjectIntHashMap<String> words = new TObjectIntHashMap<>();
+    while (scanner.hasNextLine()) {
+      String line = scanner.nextLine();
+      for (String word : StringUtils.tokenize(line, /* Remove stop words */true)) {
+        if (request.query.contains(word)) continue;
+        Integer cnt = words.get(word);
+        if (cnt == null) {
+          cnt = 1;
+        } else {
+          cnt++;
+        }
+        words.put(word, cnt);
+      }
+    }
+    PriorityQueue<WordAndCount> pq = new PriorityQueue<>(new Comparator<WordAndCount>() {
+      public int compare(WordAndCount o1, WordAndCount o2) {
+        return Integer.compare(o2.count, o1.count);
+      }
+    });
+    words.forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
+    scanner.close();
+    Keywords kw = new Keywords();
+    WordAndCount[] wc = new WordAndCount[request.pageSize];
+    for (int i = 0; i < wc.length; i++)
+      wc[i] = pq.poll();
+    kw.keywords = wc;
+    return kw;
+  }
+
+  private Path dumpSearchResults(User user, Request request) throws ParseException, IOException, FileNotFoundException {
+    user = userService.validate(user);
+    Query query = searchService.getQuery(request);
+    IndexSearcher searcher = getSearcher(request, user);
+    Filter f = NumericRangeFilter.newLongRange(MailSchema.date.name(), request.startTime, request.endTime, true, true);
+    TopDocs docs = searcher.search(query, f, 10000);
+    Path tempFile = Files.createTempFile(format("kw-%s-%s", user.id, request.keywordField), ".mailytics.temp");
+    PrintWriter writer = new PrintWriter(tempFile.toFile());
+    TIntHashSet dupSet = new TIntHashSet();
+    for (ScoreDoc sd : docs.scoreDocs) {
+      Document doc = searcher.doc(sd.doc);
+      String string = doc.get(request.keywordField.name());
+      int hash = string.hashCode();
+      if (!dupSet.contains(hash)) {
+        writer.println(string);
+        dupSet.add(hash);
+      }
+    }
+    dupSet.clear();
+    writer.close();
+    return tempFile;
+  }
+
   private Facets runFacetedSearch(Request req, User user) throws IOException, ParseException {
-    IndexReader reader = searchService.getReader(user, req.mailboxIds);
     FacetsCollector fc = new FacetsCollector();
     Query query = searchService.getQuery(req);
-    IndexSearcher searcher = new IndexSearcher(reader);
-    FacetsCollector.search(searcher, query, req.pageSize, fc);
+    FacetsCollector.search(getSearcher(req, user), query, req.pageSize, fc);
+    // TODO: support faceting for sortedsetdocvalue based fields (e.g. from)
     Facets facets = new LongRangeFacetCounts(req.trendField.name(), fc, buildRanges(req));
     return facets;
+  }
+
+  private IndexSearcher getSearcher(Request req, User user) {
+    return new IndexSearcher(getReader(req, user));
+  }
+
+  private IndexReader getReader(Request req, User user) {
+    IndexReader reader = searchService.getReader(user, req.mailboxIds);
+    return reader;
   }
 
   private LongRange[] buildRanges(Request req) {

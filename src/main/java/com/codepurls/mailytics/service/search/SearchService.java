@@ -8,11 +8,14 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.mlt.MoreLikeThisQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -64,7 +67,8 @@ public class SearchService {
       IndexSearcher searcher = new IndexSearcher(reader);
       SortType srt = req.sort;
       boolean reverse = req.sortDir == SortDirecton.DESC;
-      TopDocs topDocs = searcher.search(q, req.pageSize, new Sort(new SortField(srt.getSortField(), srt.getValueType(), reverse)));
+      Filter f = NumericRangeFilter.newLongRange(MailSchema.date.name(), req.startTime, req.endTime, true, true);
+      TopDocs topDocs = searcher.search(q, f, req.pageSize, new Sort(new SortField(srt.getSortField(), srt.getValueType(), reverse)));
       int totalHits = topDocs.totalHits;
       if (totalHits > 0) {
         List<RESTMail> results = Arrays.stream(topDocs.scoreDocs).map((sd) -> {
@@ -100,6 +104,10 @@ public class SearchService {
       q = newQueryParser().parse(req.query);
     }
     return q;
+  }
+
+  public long getTermFrequency(String term, MailSchema fld, IndexReader reader) throws IOException {
+    return reader.totalTermFreq(new Term(fld.name(), term));
   }
 
   public IndexReader getReader(User user, List<Integer> mbIds) {
