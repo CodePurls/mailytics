@@ -91,6 +91,8 @@ public class IndexingService implements Managed {
             IndexWriter writer = getWriterFor(mb);
             writer.addDocument(MailIndexer.prepareDocument(mb, mail));
           }
+        }catch(IOException e) {
+          LOG.warn("Error adding document, will skip", e);
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
           break;

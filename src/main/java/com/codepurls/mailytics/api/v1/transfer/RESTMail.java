@@ -7,11 +7,12 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class RESTMail {
-  public String              messageId;
-  public Date                date;
-  public String              subject, from, cc, to, body;
+  public String                      messageId;
+  public Date                        date;
+  public String                      subject, from, cc, to, body;
   @JsonIgnore
-  public Map<String, String> headers = new HashMap<>();
-  public String              folder;
-  public int                 attachmentCount;
+  public Map<String, String>         headers     = new HashMap<>();
+  public String                      folder;
+  public int                         attachmentCount;
+  public Map<String, RESTAttachment> attachments = new HashMap<>();
 }

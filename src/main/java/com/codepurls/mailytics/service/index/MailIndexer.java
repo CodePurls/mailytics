@@ -3,13 +3,15 @@ package com.codepurls.mailytics.service.index;
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 import static com.codepurls.mailytics.utils.StringUtils.toPlainText;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -22,14 +24,18 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codepurls.mailytics.api.v1.transfer.RESTAttachment;
 import com.codepurls.mailytics.api.v1.transfer.RESTMail;
+import com.codepurls.mailytics.data.core.Attachment;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
+import com.codepurls.mailytics.service.ingest.MailReaderException;
 import com.codepurls.mailytics.utils.RFC822Constants;
-import com.codepurls.mailytics.utils.Tuple;
 
 public class MailIndexer {
   public enum MailSchema {
@@ -179,26 +185,51 @@ public class MailIndexer {
         mail.body = doc.get(name());
       }
     },
+    attachment {
+      private static final String ATTACHMENT_COUNT = "attachment_count";
 
-    attachment_count {
       public Field[] getFields() {
-        return new Field[] { new IntField(name(), 0, Store.YES) };
+        return new Field[0];
       }
 
       public void setFieldValues(Document doc, Mail mail) {
-        for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setIntValue(mail.getAttachments().size());
+        List<Attachment> attachments = mail.getAttachments();
+        doc.add(new IntField(ATTACHMENT_COUNT, attachments.size(), Store.YES));
+        for (Attachment attachment : attachments) {
+          try {
+            doc.add(new TextField(name(), new Tika().parseToString(attachment.getStream()), Store.NO));
+            doc.add(new StringField(name() + "_content_type", attachment.getMediaType(), Store.YES));
+            doc.add(new StringField(name() + "_name", attachment.getName(), Store.YES));
+            doc.add(new LongField(name() + "_size", attachment.getSize(), Store.YES));
+          } catch (MailReaderException | IOException e) {
+            LOG.warn("Error parsing attachment {}", attachment.getName(), e);
+          } catch (TikaException e) {
+            LOG.warn("Error parsing attachment {} for mail {}", attachment.getName(), mail.getSubject(), e);
+          }
         }
       }
 
       public void retrieveValue(RESTMail mail, Document doc) {
-        mail.attachmentCount = doc.getField(name()).numericValue().intValue();
+        mail.attachmentCount = doc.getField(ATTACHMENT_COUNT).numericValue().intValue();
+        RESTAttachment[] attArr = new RESTAttachment[mail.attachmentCount];
+        for (int i = 0; i < mail.attachmentCount; i++) {
+          RESTAttachment att = new RESTAttachment();
+          att.name = doc.get(name() + "_name");
+          att.type = doc.get(name() + "_content_type");
+          att.size = doc.getField(name() + "_size").numericValue().longValue();
+          attArr[i] = att;
+        }
+        for (RESTAttachment ra : attArr) {
+          mail.attachments.put(ra.name, ra);
+        }
       }
+
     };
     public final static Set<String>  STATIC_FIELD_NAMES;
     public final static MailSchema[] STATIC_FIELDS;
     static {
       STATIC_FIELDS = MailSchema.values();
+      Arrays.sort(STATIC_FIELDS);
       STATIC_FIELD_NAMES = new HashSet<>();
       for (MailSchema mf : STATIC_FIELDS) {
         STATIC_FIELD_NAMES.add(mf.name());
@@ -212,7 +243,7 @@ public class MailIndexer {
     public abstract void retrieveValue(RESTMail mail, Document doc);
   }
 
-  private static final Logger                LOG    = LoggerFactory.getLogger("mail-indexer");
+  private static final Logger LOG = LoggerFactory.getLogger("mail-indexer");
 
   public static void setValue(Field f, String value) {
     if (f instanceof SortedDocValuesField) {
@@ -271,10 +302,12 @@ public class MailIndexer {
     for (MailSchema mf : MailSchema.STATIC_FIELDS) {
       mf.retrieveValue(mail, doc);
     }
-    List<IndexableField> fields = doc.getFields();
-    mail.headers = fields.stream().filter(x -> x.fieldType().stored() && !MailSchema.STATIC_FIELD_NAMES.contains(x.name())).map(f -> {
-      return Tuple.of(f.name(), f.stringValue());
-    }).collect(Collectors.toMap(t -> t.getKey(), t -> t.getValue()));
+    Map<String, String> fieldMap = new HashMap<>();
+    for (IndexableField f : doc.getFields()) {
+      if (f.fieldType().stored() || MailSchema.STATIC_FIELD_NAMES.contains(f.name())) continue;
+      fieldMap.put(f.name(), f.stringValue());
+    }
+    mail.headers = fieldMap;
     return mail;
   }
 
