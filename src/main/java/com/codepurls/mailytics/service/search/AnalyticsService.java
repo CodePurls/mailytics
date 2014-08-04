@@ -11,9 +11,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Scanner;
 
@@ -73,6 +75,39 @@ public class AnalyticsService {
     return countsByRes;
   }
 
+  public Map<String, WordAndCount[]> getHistogram(User user, Request request) throws ParseException, IOException {
+    Map<String, TObjectIntHashMap<String>> results = new HashMap<>();
+    IndexSearcher searcher = getSearcher(request, user);
+    TopDocs topDocs = searcher.search(searchService.getQuery(request), 10000);
+    for (ScoreDoc sd : topDocs.scoreDocs) {
+      Document doc = searcher.doc(sd.doc);
+      for (MailSchema r : request.histogramFields) {
+        String value = doc.get(r.name());
+        TObjectIntHashMap<String> counts = results.get(r.name());
+        if (counts == null) {
+          counts = new TObjectIntHashMap<>();
+          results.put(r.name(), counts);
+        }
+        counts.adjustOrPutValue(value, 1, 1);
+      }
+    }
+    Map<String, PriorityQueue<WordAndCount>> pqMap = new HashMap<>();
+    for (Entry<String, TObjectIntHashMap<String>> e : results.entrySet()) {
+      PriorityQueue<WordAndCount> pq = createPriorityQueue();
+      pqMap.put(e.getKey(), pq);
+      e.getValue().forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
+    }
+    Map<String, WordAndCount[]> wcMap = new HashMap<>();
+    for (Entry<String, PriorityQueue<WordAndCount>> e : pqMap.entrySet()) {
+      WordAndCount[] wc = new WordAndCount[request.pageSize];
+      for (int i = 0; i < request.pageSize; i++) {
+        wc[i] = e.getValue().poll();
+      }
+      wcMap.put(e.getKey(), wc);
+    }
+    return wcMap;
+  }
+
   public Keywords findKeywords(User user, Request request) throws ParseException, IOException {
     Path dumpFile = dumpSearchResults(user, request);
     Scanner scanner = new Scanner(dumpFile);
@@ -90,11 +125,7 @@ public class AnalyticsService {
         words.put(word, cnt);
       }
     }
-    PriorityQueue<WordAndCount> pq = new PriorityQueue<>(new Comparator<WordAndCount>() {
-      public int compare(WordAndCount o1, WordAndCount o2) {
-        return Integer.compare(o2.count, o1.count);
-      }
-    });
+    PriorityQueue<WordAndCount> pq = createPriorityQueue();
     words.forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
     scanner.close();
     Keywords kw = new Keywords();
@@ -103,6 +134,15 @@ public class AnalyticsService {
       wc[i] = pq.poll();
     kw.keywords = wc;
     return kw;
+  }
+
+  private PriorityQueue<WordAndCount> createPriorityQueue() {
+    PriorityQueue<WordAndCount> pq = new PriorityQueue<>(new Comparator<WordAndCount>() {
+      public int compare(WordAndCount o1, WordAndCount o2) {
+        return Integer.compare(o2.count, o1.count);
+      }
+    });
+    return pq;
   }
 
   private Path dumpSearchResults(User user, Request request) throws ParseException, IOException, FileNotFoundException {

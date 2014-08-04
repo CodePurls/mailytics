@@ -1,6 +1,7 @@
 package com.codepurls.mailytics.service.index;
 
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
+import static com.codepurls.mailytics.utils.StringUtils.toPlainText;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -168,8 +169,9 @@ public class MailIndexer {
       }
 
       public void setFieldValues(Document doc, Mail mail) {
+        String text = toPlainText(orEmpty(mail.getBody()));
         for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getBody()));
+          ((Field) f).setStringValue(text);
         }
       }
 

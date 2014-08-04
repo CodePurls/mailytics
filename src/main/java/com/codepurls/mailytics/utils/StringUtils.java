@@ -12,6 +12,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Version;
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Whitelist;
 
 public class StringUtils {
   static final Pattern             CSV            = Pattern.compile(",");
@@ -22,6 +24,10 @@ public class StringUtils {
     return str == null || str.isEmpty() ? "" : str;
   }
 
+  public static String toPlainText(String htmlText) {
+    return Jsoup.clean(htmlText, Whitelist.none());
+  }
+  
   public static boolean isBlank(String str) {
     return orEmpty(str).equals("");
   }

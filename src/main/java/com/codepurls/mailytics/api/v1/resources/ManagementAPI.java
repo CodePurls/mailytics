@@ -66,13 +66,13 @@ public class ManagementAPI {
         messages.add(format("{ \"status\": \"Mailbox '%s' scheduled for indexing\"}", mailbox.name));
       }
     }
-    return Response.ok(messages).build();
+    return Response.created(UriBuilder.fromPath("{id}").build(mailboxes.iterator().next().id)).entity(messages).build();
   }
 
-  public static class SecureToken{
+  public static class SecureToken {
     public String password;
   }
-  
+
   @Path("mailboxes/{id}/index")
   @PUT
   public Response scheduleIndex(@PathParam("id") int mailboxId, SecureToken token) {
@@ -86,7 +86,7 @@ public class ManagementAPI {
     mb.password = token.password;
     mb.user = user;
     indexingService.index(mb);
-    return Response.ok(format("{ \"status\": \"Mailbox '%s' scheduled for indexing\"}", mb.name)).build();
+    return createdResponse(mb, format("{ \"status\": \"Mailbox '%s' scheduled for indexing\"}", mb.name));
   }
 
   @Path("mailboxes/{id}/reindex")
@@ -101,7 +101,11 @@ public class ManagementAPI {
     }
     mb.user = user;
     indexingService.reindex(mb);
-    return Response.ok(format("{ \"status\": \"Mailbox '%s' scheduled for re-indexing\"}", mb.name)).build();
+    return createdResponse(mb, format("{ \"status\": \"Mailbox '%s' scheduled for re-indexing\"}", mb.name));
+  }
+
+  private Response createdResponse(Mailbox mb, String msg) {
+    return Response.created(UriBuilder.fromPath("{id}").build(mb.id)).entity(msg).build();
   }
 
   private Response mbNotfoundResponse(int mailboxId) {
