@@ -36,7 +36,8 @@ public class APIBase {
   protected static final String PARAM_DEFAULT_SIZE = "10";
   protected static final String PARAM_RESOLUTION   = "res";
   protected static final String PARAM_FACET_FIELD  = "trend_field";
-  protected static final String PARAM_KW_FIELD  = "keyword_field";
+  protected static final String PARAM_KW_FIELD     = "keyword_field";
+  protected static final String PARAM_HISTO_FIELD  = "histogram_field";
 
   @Context
   protected UserService         userService;
@@ -78,6 +79,9 @@ public class APIBase {
   @QueryParam(PARAM_KW_FIELD)
   protected String              keywordField;
 
+  @QueryParam(PARAM_HISTO_FIELD)
+  protected String              histogramFields;
+
   protected Request createRequest(List<Integer> mbIds) {
     Request r = new Request();
     r.mailboxIds = mbIds;
@@ -96,7 +100,7 @@ public class APIBase {
       r.endTime = LocalDate.parse(endDateStr, formatter).atTime(LocalTime.of(0, 0)).toInstant(ZoneOffset.MIN).toEpochMilli();
     }
     r.sort = StringUtils.isBlank(sort) ? SortType.DATE : SortType.valueOf(sort.toUpperCase());
-    r.sortDir = StringUtils.isBlank(sortDir) ? SortDirecton.ASC : SortDirecton.valueOf(sortDir.toUpperCase());
+    r.sortDir = StringUtils.isBlank(sortDir) ? r.sortDir : SortDirecton.valueOf(sortDir.toUpperCase());
     if (r.mailboxIds == null || r.mailboxIds.isEmpty()) {
       r.mailboxIds = userService.getMailboxes(user).stream().map((m) -> m.id).collect(Collectors.toList());
     }
@@ -106,11 +110,17 @@ public class APIBase {
     if (!StringUtils.isBlank(facetResolution)) {
       r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
     }
-    if(!StringUtils.isBlank(trendField)) {
+    if (!StringUtils.isBlank(trendField)) {
       r.trendField = MailSchema.valueOf(trendField.toLowerCase());
     }
-    if(!StringUtils.isBlank(keywordField)) {
+    if (!StringUtils.isBlank(keywordField)) {
       r.keywordField = MailSchema.valueOf(keywordField.toLowerCase());
+    }
+    if (!StringUtils.isBlank(histogramFields)) {
+      r.histogramFields = StringUtils.parseCSV(histogramFields).stream()
+          .map(String::toLowerCase)
+          .map(MailSchema::valueOf)
+          .collect(Collectors.toList());
     }
     return r;
   }

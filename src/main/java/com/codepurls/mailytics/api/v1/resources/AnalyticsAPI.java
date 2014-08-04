@@ -1,14 +1,15 @@
 package com.codepurls.mailytics.api.v1.resources;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -32,15 +33,22 @@ public class AnalyticsAPI extends APIBase{
 
   @GET
   @Path("keywords")
-  public Response getKeywords() throws ParseException, IOException {
-    Request request = createRequest(Collections.emptyList());
+  public Response getKeywords(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+    Request request = createRequest(mbIds);
     return Response.ok(analyticsService.findKeywords(user, request)).build();
   }
 
   @GET
+  @Path("histogram")
+  public Response getTopSenders(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+    Request request = createRequest(mbIds);
+    return Response.ok(analyticsService.getHistogram(user, request)).build();
+  }
+  
+  @GET
   @Path("trend")
-  public Response getTrend() throws ParseException, IOException {
-    Request request = createRequest(Collections.emptyList());
+  public Response getTrend(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+    Request request = createRequest(mbIds);
     Map<Long, Integer> trend = analyticsService.getTrend(user, request);
     Map<String, Integer> response = new LinkedHashMap<>();
     for (Entry<Long, Integer> e : trend.entrySet()) {
