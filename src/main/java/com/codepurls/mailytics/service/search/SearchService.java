@@ -34,7 +34,7 @@ import com.codepurls.mailytics.data.security.User;
 import com.codepurls.mailytics.service.dao.QueryLogDao;
 import com.codepurls.mailytics.service.index.IndexingService;
 import com.codepurls.mailytics.service.index.MailIndexer;
-import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchemaField;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 import com.google.common.base.Charsets;
@@ -67,7 +67,7 @@ public class SearchService {
       IndexSearcher searcher = new IndexSearcher(reader);
       SortType srt = req.sort;
       boolean reverse = req.sortDir == SortDirecton.DESC;
-      Filter f = NumericRangeFilter.newLongRange(MailSchema.date.name(), req.startTime, req.endTime, true, true);
+      Filter f = NumericRangeFilter.newLongRange(MailSchemaField.date.name(), req.startTime, req.endTime, true, true);
       TopDocs topDocs = searcher.search(q, f, req.pageSize, new Sort(new SortField(srt.getSortField(), srt.getValueType(), reverse)));
       int totalHits = topDocs.totalHits;
       if (totalHits > 0) {
@@ -96,7 +96,7 @@ public class SearchService {
       q = new MatchAllDocsQuery();
     } else if (req.similarFields != null) {
       MoreLikeThisQuery mlt = new MoreLikeThisQuery(req.query, req.similarFields.toArray(new String[0]), indexingService.getAnalyzer(),
-          MailSchema.subject.name());
+          MailSchemaField.subject.name());
       mlt.setMinDocFreq(0);
       mlt.setMinTermFrequency(0);
       q = mlt;
@@ -106,7 +106,7 @@ public class SearchService {
     return q;
   }
 
-  public long getTermFrequency(String term, MailSchema fld, IndexReader reader) throws IOException {
+  public long getTermFrequency(String term, MailSchemaField fld, IndexReader reader) throws IOException {
     return reader.totalTermFreq(new Term(fld.name(), term));
   }
 
@@ -118,6 +118,6 @@ public class SearchService {
   }
 
   private QueryParser newQueryParser() {
-    return new QueryParser(indexingService.getVersion(), MailSchema.contents.name(), indexingService.getAnalyzer());
+    return new QueryParser(indexingService.getVersion(), MailSchemaField.contents.name(), indexingService.getAnalyzer());
   }
 }

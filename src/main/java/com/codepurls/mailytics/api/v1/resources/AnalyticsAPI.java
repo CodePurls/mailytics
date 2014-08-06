@@ -40,7 +40,7 @@ public class AnalyticsAPI extends APIBase{
 
   @GET
   @Path("histogram")
-  public Response getTopSenders(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+  public Response getHistogram(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
     Request request = createRequest(mbIds);
     return Response.ok(analyticsService.getHistogram(user, request)).build();
   }

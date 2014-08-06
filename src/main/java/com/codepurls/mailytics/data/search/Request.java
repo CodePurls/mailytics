@@ -9,7 +9,8 @@ import java.util.List;
 
 import org.apache.lucene.search.SortField.Type;
 
-import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchemaField;
+import com.codepurls.mailytics.service.index.MailIndexer.SchemaField;
 
 public class Request {
   public enum Resolution {
@@ -40,17 +41,17 @@ public class Request {
   }
 
   public enum SortType {
-    DATE(MailSchema.date, Type.LONG), FROM(MailSchema.from), TO(MailSchema.to), SUBJECT(MailSchema.subject);
+    DATE(MailSchemaField.date, Type.LONG), FROM(MailSchemaField.from), TO(MailSchemaField.to), SUBJECT(MailSchemaField.subject);
 
     private final Type   type;
     private final String sortField;
 
-    private SortType(MailSchema sortField, Type type) {
+    private SortType(MailSchemaField sortField, Type type) {
       this.sortField = sortField.name();
       this.type = type;
     }
 
-    private SortType(MailSchema sortField) {
+    private SortType(MailSchemaField sortField) {
       this(sortField, Type.STRING);
     }
 
@@ -67,19 +68,18 @@ public class Request {
     ASC, DESC
   }
 
-  public String           query;
-  public SortType         sort                      = SortType.DATE;
-  public SortDirecton     sortDir                   = SortDirecton.DESC;
-  public int              pageSize                  = 10;
-  public int              pageNum                   = 1;
-  public long             startTime                 = -1;
-  public long             endTime                   = -1;
-  public List<Integer>    mailboxIds                = Collections.emptyList();
-  public List<String>     similarFields;
-  public Resolution       resolution                = Resolution.DAY;
-  public MailSchema       trendField                = MailSchema.date;
-  public MailSchema       keywordField              = MailSchema.subject;
-  public int              termFrequencyMinThreshold = 10;
-  public List<MailSchema> histogramFields;
+  public String            query;
+  public SortType          sort                      = SortType.DATE;
+  public SortDirecton      sortDir                   = SortDirecton.DESC;
+  public int               pageSize                  = 10;
+  public int               pageNum                   = 1;
+  public long              startTime                 = -1;
+  public long              endTime                   = -1;
+  public List<Integer>     mailboxIds                = Collections.emptyList();
+  public List<String>      similarFields;
+  public Resolution        resolution                = Resolution.DAY;
+  public SchemaField       trendField                = MailSchemaField.date;
+  public SchemaField       keywordField              = MailSchemaField.subject;
+  public List<SchemaField> histogramFields           = Collections.emptyList();
 
 }

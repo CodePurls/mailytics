@@ -13,4 +13,7 @@ public class RESTMail {
   public String               folder;
   public int                  attachmentCount;
   public List<RESTAttachment> attachments;
+  public String               language;
+  public String               userAgent;
+  public String               topic;
 }
