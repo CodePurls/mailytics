@@ -20,6 +20,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -56,14 +57,19 @@ public class IndexingService implements Managed {
   private final BlockingQueue<Tuple<Mailbox, Mail>>          mailQueue;
   private final BlockingQueue<Mailbox>                       mboxQueue;
   private final AtomicBoolean                                keepRunning = new AtomicBoolean(true);
-  private final ConcurrentHashMap<Mailbox, IndexWriter>      userIndices;
   private final LoadingCache<Mailbox, Optional<IndexReader>> indexReaders;
   private final Version                                      version     = Version.LUCENE_4_9;
   private final Analyzer                                     analyzer;
   private final Thread                                       mailboxVisitor;
 
   public class IndexWorker implements Callable<AtomicLong> {
-    private final AtomicLong counter = new AtomicLong();
+    private class Stats {
+      int success, failure;
+    }
+
+    private final AtomicLong                              counter              = new AtomicLong();
+    private final ConcurrentHashMap<Mailbox, Stats>       mailboxIndexingStats = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Mailbox, IndexWriter> userIndices          = new ConcurrentHashMap<>();
 
     public AtomicLong call() throws Exception {
       try {
@@ -71,6 +77,16 @@ public class IndexingService implements Managed {
         LOG.info("IndexWorker stopped, prepared {} docs", counter.get());
       } catch (Exception e) {
         LOG.error("Error indexing mails, ignoring", e);
+      }finally {
+        this.userIndices.forEach((k, w) -> {
+          try {
+            LOG.info("Closing index writer for mailbox {}", k.name);
+            w.close(true);
+          } catch (Exception e) {
+            LOG.error("Error commiting index of {}", k.username, e);
+          }
+        });
+        this.userIndices.clear();
       }
       return counter;
     }
@@ -85,13 +101,24 @@ public class IndexingService implements Managed {
           }
           Mailbox mb = tuple.getKey();
           Mail mail = tuple.getValue();
+          Stats stats = mailboxIndexingStats.get(tuple.getKey());
+          if (stats == null) {
+            stats = new Stats();
+            mailboxIndexingStats.put(mb, stats);
+          }
           if (mail == null) {
-            finalizeIndex(mb);
+            finalizeIndex(mb, stats);
           } else {
             IndexWriter writer = getWriterFor(mb);
-            writer.addDocument(MailIndexer.prepareDocument(mb, mail));
+            Document document = MailIndexer.prepareDocument(mb, mail);
+            if (document == null) {
+              stats.failure++;
+            } else {
+              writer.addDocument(document);
+              stats.success++;
+            }
           }
-        }catch(IOException e) {
+        } catch (IOException e) {
           LOG.warn("Error adding document, will skip", e);
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while polling queue, will break", e);
@@ -100,8 +127,20 @@ public class IndexingService implements Managed {
       }
     }
 
-    private void finalizeIndex(Mailbox mb) {
-      LOG.info("Received end of mailbox, will mark as indexed.");
+    private IndexWriter getWriterFor(Mailbox mb) throws IOException {
+      return userIndices.computeIfAbsent(mb, (mbox) -> {
+        try {
+          return new IndexWriter(getIndexDir(index, mbox), getWriterConfig());
+        } catch (Exception e) {
+          LOG.error("Error opening index writer for mailbox: {}", mbox.name, e);
+          return null;
+        }
+      });
+    }
+
+    private void finalizeIndex(Mailbox mb, Stats stats) {
+      LOG.info("Received end of mailbox, will mark as indexed. Indexed {} documents ({} errors)", stats.success, stats.failure);
+      mailboxIndexingStats.remove(mb);
       IndexWriter writer = userIndices.remove(mb);
       if (writer == null) {
         LOG.warn("No index writer found for mb: '{}'", mb.name);
@@ -110,7 +149,8 @@ public class IndexingService implements Managed {
       try {
         LOG.info("Commiting index for mailbox '{}'", mb.name);
         writer.commit();
-        LOG.info("Closing index for mailbox '{}'", mb.name);
+        LOG.info("Optimizing and Closing index for mailbox '{}'", mb.name);
+        writer.forceMerge(1);
         writer.close(true);
         LOG.info("Mailbox '{}' indexed", mb.name);
         mb.closeReader();
@@ -182,11 +222,8 @@ public class IndexingService implements Managed {
     this.mailQueue = new ArrayBlockingQueue<>(index.indexQueueSize);
     this.mboxQueue = new ArrayBlockingQueue<>(1);
     this.mailboxVisitor = new Thread(new MailboxVisitor(), "mb-visitor");
-    this.userIndices = new ConcurrentHashMap<>();
-    this.indexReaders = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS)
-        .expireAfterWrite(60, TimeUnit.SECONDS)
-        .softValues()
-        .removalListener((r) -> LOG.info("Unloading index reader for mailbox: {}", ((Mailbox)r.getKey()).name))
+    this.indexReaders = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS).expireAfterWrite(60, TimeUnit.SECONDS).softValues()
+        .removalListener((r) -> LOG.info("Unloading index reader for mailbox: {}", ((Mailbox) r.getKey()).name))
         .build(new CacheLoader<Mailbox, Optional<IndexReader>>() {
           public Optional<IndexReader> load(Mailbox mb) throws Exception {
             LOG.info("Loading index reader for mailbox: {}", mb.name);
@@ -226,17 +263,6 @@ public class IndexingService implements Managed {
     return new File(config.location, mb.user.username.toLowerCase() + File.separatorChar + name);
   }
 
-  protected IndexWriter getWriterFor(Mailbox mb) throws IOException {
-    return userIndices.computeIfAbsent(mb, (mbox) -> {
-      try {
-        return new IndexWriter(getIndexDir(this.index, mbox), getWriterConfig());
-      } catch (Exception e) {
-        LOG.error("Error opening index writer for mailbox: {}", mbox.name, e);
-        return null;
-      }
-    });
-  }
-
   public void start() throws Exception {
     validateIndexDir(index);
     for (int i = 0; i < index.indexerThreads; i++) {
@@ -261,15 +287,6 @@ public class IndexingService implements Managed {
     this.mailboxVisitor.interrupt();
     this.mailQueue.offer(null, 1, TimeUnit.SECONDS);
     this.indexerPool.shutdownNow();
-    this.userIndices.forEach((k, w) -> {
-      try {
-        LOG.info("Closing index writer for mailbox {}", k.name);
-        w.close(true);
-      } catch (Exception e) {
-        LOG.error("Error commiting index of {}", k.username, e);
-      }
-    });
-    this.userIndices.clear();
   }
 
   public void index(Mailbox mb) {

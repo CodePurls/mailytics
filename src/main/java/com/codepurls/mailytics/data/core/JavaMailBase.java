@@ -48,7 +48,7 @@ public abstract class JavaMailBase<F extends MailFolder> extends AbstractMail<F>
     }
     while (mailHeaders.hasMoreElements()) {
       Header header = mailHeaders.nextElement();
-      res.put(header.getName(), header.getValue());
+      res.put(header.getName().toLowerCase(), header.getValue());
     }
     this.headers = res;
     return this.headers;

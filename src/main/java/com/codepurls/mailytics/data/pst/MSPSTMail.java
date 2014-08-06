@@ -75,7 +75,7 @@ public final class MSPSTMail extends AbstractMail<MSPSTFolder> {
         prev = key;
         value = line.substring(colon + 1).trim();
       }
-      headers.put(key, value);
+      headers.put(key.toLowerCase(), value);
     }
     this.parsedHeaders = headers;
     scanner.close();
