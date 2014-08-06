@@ -3,14 +3,12 @@ package com.codepurls.mailytics.service.index;
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
 import static com.codepurls.mailytics.utils.StringUtils.toPlainText;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.lucene.document.Document;
@@ -25,7 +23,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.tika.Tika;
-import org.apache.tika.exception.TikaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +31,6 @@ import com.codepurls.mailytics.api.v1.transfer.RESTMail;
 import com.codepurls.mailytics.data.core.Attachment;
 import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
-import com.codepurls.mailytics.service.ingest.MailReaderException;
 import com.codepurls.mailytics.utils.RFC822Constants;
 
 public class MailIndexer {
@@ -106,17 +102,13 @@ public class MailIndexer {
 
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
-          Date date = mail.getDate();
-          if (date == null) {
-            LOG.warn("Null date for mail: {}, folder: {} ", mail.getSubject(), mail.getFolder().getName());
-            date = new Date(0);
-          }
-          ((Field) f).setLongValue(date.getTime());
+          ((Field) f).setLongValue(mail.getDate().getTime());
         }
       }
 
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.date = new Date(doc.getField(name()).numericValue().longValue());
+        mail.dateString = mail.date.toInstant().toString();
       }
     },
 
@@ -195,17 +187,17 @@ public class MailIndexer {
       public void setFieldValues(Document doc, Mail mail) {
         List<Attachment> attachments = mail.getAttachments();
         doc.add(new IntField(ATTACHMENT_COUNT, attachments.size(), Store.YES));
+        int i = 0;
         for (Attachment attachment : attachments) {
           try {
-            doc.add(new TextField(name(), new Tika().parseToString(attachment.getStream()), Store.NO));
-            doc.add(new StringField(name() + "_content_type", attachment.getMediaType(), Store.YES));
-            doc.add(new StringField(name() + "_name", attachment.getName(), Store.YES));
-            doc.add(new LongField(name() + "_size", attachment.getSize(), Store.YES));
-          } catch (MailReaderException | IOException e) {
+            doc.add(new TextField(i + "_" + name(), new Tika().parse(attachment.getStream())));
+            doc.add(new StringField(i + "_" + name() + "_content_type", attachment.getMediaType(), Store.YES));
+            doc.add(new StringField(i + "_" + name() + "_name", attachment.getName(), Store.YES));
+            doc.add(new LongField(i + "_" + name() + "_size", attachment.getSize(), Store.YES));
+          } catch (Exception e) {
             LOG.warn("Error parsing attachment {}", attachment.getName(), e);
-          } catch (TikaException e) {
-            LOG.warn("Error parsing attachment {} for mail {}", attachment.getName(), mail.getSubject(), e);
           }
+          i++;
         }
       }
 
@@ -214,14 +206,12 @@ public class MailIndexer {
         RESTAttachment[] attArr = new RESTAttachment[mail.attachmentCount];
         for (int i = 0; i < mail.attachmentCount; i++) {
           RESTAttachment att = new RESTAttachment();
-          att.name = doc.get(name() + "_name");
-          att.type = doc.get(name() + "_content_type");
-          att.size = doc.getField(name() + "_size").numericValue().longValue();
+          att.name = doc.get(i + "_" + name() + "_name");
+          att.type = doc.get(i + "_" + name() + "_content_type");
+          att.size = doc.getField(i + "_" + name() + "_size").numericValue().longValue();
           attArr[i] = att;
         }
-        for (RESTAttachment ra : attArr) {
-          mail.attachments.put(ra.name, ra);
-        }
+        mail.attachments = Arrays.asList(attArr);
       }
 
     };
@@ -260,26 +250,25 @@ public class MailIndexer {
   }
 
   public static Document prepareDocument(Mailbox mb, Mail mail) {
+    Date date = mail.getDate();
+    if (date == null) {
+      LOG.warn("Null date for mail: {}, folder: {}, this email will not be indexed.", mail.getSubject(), mail.getFolder().getName());
+      return null;
+    }
     Document document = createDocument();
     Arrays.stream(MailSchema.STATIC_FIELDS).forEach(mf -> {
       try {
         mf.setFieldValues(document, mail);
       } catch (Exception e) {
         LOG.error("Error setting field value {}, will ignore", mf, e);
-      } catch (Throwable e) {
-        LOG.error("Error indexing mails", e);
       }
-
     });
-    for (Entry<String, String> h : mail.getHeaders().entrySet()) {
-      String name = h.getKey().toLowerCase();
-      String value = h.getValue();
-      if (name.isEmpty()) continue;
-      if (MailSchema.STATIC_FIELD_NAMES.contains(name)) continue;
-      if (name.startsWith(" ")) {
-        LOG.warn("Unknown header: {} -> {}", name, value);
-        continue;
-      }
+    
+    mail.getHeaders().entrySet().stream()
+    .filter(e-> !e.getKey().isEmpty() && e.getKey().startsWith(" ") && !MailSchema.STATIC_FIELD_NAMES.contains(e.getKey()))
+    .forEach(e->{
+      String name = e.getKey().toLowerCase();
+      String value = e.getValue();
       try {
         boolean found = false;
         for (IndexableField f : document.getFields(name)) {
@@ -290,10 +279,11 @@ public class MailIndexer {
           document.add(new TextField(name, value, Store.YES));
           document.add(new SortedDocValuesField(name, new BytesRef(value)));
         }
-      } catch (Exception e) {
-        LOG.error("Error indexing header: {} -> {}", name, value, e);
+      } catch (Exception ex) {
+        LOG.error("Error indexing header: {} -> {}", name, value, ex);
       }
-    }
+
+    });
     return document;
   }
 
@@ -304,7 +294,7 @@ public class MailIndexer {
     }
     Map<String, String> fieldMap = new HashMap<>();
     for (IndexableField f : doc.getFields()) {
-      if (f.fieldType().stored() || MailSchema.STATIC_FIELD_NAMES.contains(f.name())) continue;
+      if (MailSchema.STATIC_FIELD_NAMES.contains(f.name())) continue;
       fieldMap.put(f.name(), f.stringValue());
     }
     mail.headers = fieldMap;
