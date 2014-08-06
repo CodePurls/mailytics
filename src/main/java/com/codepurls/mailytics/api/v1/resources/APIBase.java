@@ -19,7 +19,8 @@ import com.codepurls.mailytics.data.search.Request.Resolution;
 import com.codepurls.mailytics.data.search.Request.SortDirecton;
 import com.codepurls.mailytics.data.search.Request.SortType;
 import com.codepurls.mailytics.data.security.User;
-import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchemaField;
+import com.codepurls.mailytics.service.index.MailIndexer.SchemaField;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 
@@ -111,15 +112,15 @@ public class APIBase {
       r.resolution = Resolution.valueOf(facetResolution.toUpperCase());
     }
     if (!StringUtils.isBlank(trendField)) {
-      r.trendField = MailSchema.valueOf(trendField.toLowerCase());
+      r.trendField = MailSchemaField.valueOf(trendField.toLowerCase());
     }
     if (!StringUtils.isBlank(keywordField)) {
-      r.keywordField = MailSchema.valueOf(keywordField.toLowerCase());
+      r.keywordField = MailSchemaField.valueOf(keywordField.toLowerCase());
     }
     if (!StringUtils.isBlank(histogramFields)) {
       r.histogramFields = StringUtils.parseCSV(histogramFields).stream()
           .map(String::toLowerCase)
-          .map(MailSchema::valueOf)
+          .map(SchemaField::resolve)
           .collect(Collectors.toList());
     }
     return r;

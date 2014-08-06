@@ -246,7 +246,9 @@ public class IndexingService implements Managed {
   }
 
   public IndexWriterConfig getWriterConfig() {
-    return new IndexWriterConfig(version, analyzer);
+    IndexWriterConfig config = new IndexWriterConfig(version, analyzer);
+    config.setCodec(new MailyticsIndexCodec());
+    return config;
   }
 
   public Directory getIndexDir(Mailbox mb) throws IOException {

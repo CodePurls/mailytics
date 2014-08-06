@@ -2,7 +2,6 @@ package com.codepurls.mailytics.service.ingest;
 
 import static java.lang.String.format;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -31,10 +30,6 @@ public abstract class JavaMailReaderBase<F extends MailFolder> implements MailRe
     } catch (MessagingException e) {
       throw new IOException(e);
     }
-  }
-
-  public void visit(MailReaderContext context, File file, MailVisitor visitor) {
-    visit(context, file.getAbsolutePath(), visitor);
   }
 
   @Override

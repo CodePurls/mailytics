@@ -40,7 +40,8 @@ import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
 import com.codepurls.mailytics.data.search.WordAndCount;
 import com.codepurls.mailytics.data.security.User;
-import com.codepurls.mailytics.service.index.MailIndexer.MailSchema;
+import com.codepurls.mailytics.service.index.MailIndexer.MailSchemaField;
+import com.codepurls.mailytics.service.index.MailIndexer.SchemaField;
 import com.codepurls.mailytics.service.security.UserService;
 import com.codepurls.mailytics.utils.StringUtils;
 
@@ -75,13 +76,13 @@ public class AnalyticsService {
     return countsByRes;
   }
 
-  public Map<String, WordAndCount[]> getHistogram(User user, Request request) throws ParseException, IOException {
+  public Map<String, List<WordAndCount>> getHistogram(User user, Request request) throws ParseException, IOException {
     Map<String, TObjectIntHashMap<String>> results = new HashMap<>();
     IndexSearcher searcher = getSearcher(request, user);
     TopDocs topDocs = searcher.search(searchService.getQuery(request), 10000);
     for (ScoreDoc sd : topDocs.scoreDocs) {
       Document doc = searcher.doc(sd.doc);
-      for (MailSchema r : request.histogramFields) {
+      for (SchemaField r : request.histogramFields) {
         String value = doc.get(r.name());
         TObjectIntHashMap<String> counts = results.get(r.name());
         if (counts == null) {
@@ -97,11 +98,14 @@ public class AnalyticsService {
       pqMap.put(e.getKey(), pq);
       e.getValue().forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
     }
-    Map<String, WordAndCount[]> wcMap = new HashMap<>();
+    Map<String, List<WordAndCount>> wcMap = new HashMap<>();
     for (Entry<String, PriorityQueue<WordAndCount>> e : pqMap.entrySet()) {
-      WordAndCount[] wc = new WordAndCount[request.pageSize];
+      List<WordAndCount> wc = new ArrayList<>(request.pageSize);
       for (int i = 0; i < request.pageSize; i++) {
-        wc[i] = e.getValue().poll();
+        WordAndCount w = e.getValue().poll();
+        if(w == null)
+          break;
+        wc.add(w);
       }
       wcMap.put(e.getKey(), wc);
     }
@@ -149,7 +153,7 @@ public class AnalyticsService {
     user = userService.validate(user);
     Query query = searchService.getQuery(request);
     IndexSearcher searcher = getSearcher(request, user);
-    Filter f = NumericRangeFilter.newLongRange(MailSchema.date.name(), request.startTime, request.endTime, true, true);
+    Filter f = NumericRangeFilter.newLongRange(MailSchemaField.date.name(), request.startTime, request.endTime, true, true);
     TopDocs docs = searcher.search(query, f, 10000);
     Path tempFile = Files.createTempFile(format("kw-%s-%s", user.id, request.keywordField), ".mailytics.temp");
     PrintWriter writer = new PrintWriter(tempFile.toFile());
