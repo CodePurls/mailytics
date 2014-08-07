@@ -171,6 +171,35 @@ public class MailIndexer {
         mail.to = doc.get(name());
       }
     },
+    
+    cc {
+      public Field[] getFields() {
+        return new Field[] { new TextField(name(), "", Store.YES) };
+      }
+
+      public void setFieldValues(Document doc, Mail mail) {
+        for (IndexableField f : doc.getFields(name())) {
+          ((Field) f).setStringValue(orEmpty(mail.getCc()));
+        }
+      }
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.cc = doc.get(name());
+      }
+    },
+    
+    bcc {
+      public Field[] getFields() {
+        return new Field[] { new TextField(name(), "", Store.YES) };
+      }
+      public void setFieldValues(Document doc, Mail mail) {
+        for (IndexableField f : doc.getFields(name())) {
+          ((Field) f).setStringValue(orEmpty(mail.getBcc()));
+        }
+      }
+      public void retrieveValue(RESTMail mail, Document doc) {
+        mail.bcc = doc.get(name());
+      }
+    },
 
     subject {
       public Field[] getFields() {

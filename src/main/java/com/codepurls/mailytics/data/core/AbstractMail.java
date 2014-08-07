@@ -28,8 +28,12 @@ public abstract class AbstractMail<F extends MailFolder> implements Mail {
   public String getSubject() {
     return getHeaders().get(RFC822Constants.SUBJECT);
   }
-
+  
   public String getCc() {
     return getHeaders().get(RFC822Constants.CC);
+  }
+
+  public String getBcc() {
+    return getHeaders().get(RFC822Constants.BCC);
   }
 }

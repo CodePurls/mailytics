@@ -8,7 +8,7 @@ public class RESTMail {
   public String               messageId;
   public Date                 date;
   public String               dateString;
-  public String               subject, from, cc, to, body;
+  public String               subject, from, bcc, cc, to, body;
   public Map<String, String>  headers;
   public String               folder;
   public int                  attachmentCount;
