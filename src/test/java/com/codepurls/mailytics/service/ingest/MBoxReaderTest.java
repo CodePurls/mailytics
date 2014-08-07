@@ -61,6 +61,6 @@ public class MBoxReaderTest extends BaseReaderTest {
   }
 
   protected int expectedMails() {
-    return 4;
+    return 5;
   }
 }
