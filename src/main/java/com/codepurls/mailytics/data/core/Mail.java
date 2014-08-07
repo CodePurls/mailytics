@@ -19,5 +19,7 @@ public interface Mail {
   public String getTo();
   public String getSubject();
   public String getCc();
+
+  public String getBcc();
   
 }

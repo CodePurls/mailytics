@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Map;
 
 public class RESTMail {
-  public String               messageId;
+  public String               id;
   public Date                 date;
   public String               dateString;
-  public String               subject, from, cc, to, body;
+  public String               subject, from, bcc, cc, to, body;
   public Map<String, String>  headers;
   public String               folder;
   public int                  attachmentCount;
