@@ -33,6 +33,8 @@ import com.codepurls.mailytics.data.core.Mail;
 import com.codepurls.mailytics.data.core.Mailbox;
 import com.codepurls.mailytics.utils.RFC822Constants;
 import com.codepurls.mailytics.utils.StringUtils;
+import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 
 public class MailIndexer {
   private static final int MAX_DOC_VALUE_SIZE = 32766;
@@ -48,17 +50,18 @@ public class MailIndexer {
   public enum MailSchemaField implements SchemaField{
     id {
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
+        return new Field[] { new LongField(name(), 0L, Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
+        long id = Hashing.murmur3_128().hashString((mail.getDate().toString() +  mail.getFrom() + mail.getSubject()), Charsets.UTF_8).asLong();
         for (IndexableField f : doc.getFields(name())) {
-          ((Field) f).setStringValue(orEmpty(mail.getMessageId()));
+          ((Field) f).setLongValue(id);
         }
       }
 
       public void retrieveValue(RESTMail mail, Document doc) {
-        mail.messageId = doc.get(name());
+        mail.id = doc.get(name());
       }
     },
     organization {

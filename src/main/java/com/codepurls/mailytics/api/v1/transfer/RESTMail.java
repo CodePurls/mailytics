@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RESTMail {
-  public String               messageId;
+  public String               id;
   public Date                 date;
   public String               dateString;
   public String               subject, from, bcc, cc, to, body;

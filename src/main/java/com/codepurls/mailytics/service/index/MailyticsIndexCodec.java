@@ -11,7 +11,7 @@ public class MailyticsIndexCodec extends Lucene49Codec {
   public PostingsFormat getPostingsFormatForField(String field) {
     if (MailSchemaField.STATIC_FIELD_NAMES.contains(field)) {
       MailSchemaField f = MailSchemaField.valueOf(field);
-      if (f == MailSchemaField.date) { return pulsingFormat; }
+      if (f == MailSchemaField.date || f == MailSchemaField.id) { return pulsingFormat; }
     }
     return super.getPostingsFormatForField(field);
   }
