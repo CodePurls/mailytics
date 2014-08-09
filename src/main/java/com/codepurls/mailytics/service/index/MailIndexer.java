@@ -222,7 +222,7 @@ public class MailIndexer {
     
     thread_topic{
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES) };
+        return new Field[] { new TextField(name(), "", Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
@@ -233,7 +233,7 @@ public class MailIndexer {
       }
 
       public void retrieveValue(RESTMail mail, Document doc) {
-        mail.topic = doc.get(name());
+        mail.thread_topic = doc.get(name());
       }
       
     },

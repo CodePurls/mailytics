@@ -133,7 +133,7 @@ public class AnalyticsService {
     words.forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
     scanner.close();
     Keywords kw = new Keywords();
-    WordAndCount[] wc = new WordAndCount[request.pageSize];
+    WordAndCount[] wc = new WordAndCount[Math.min(request.pageSize, pq.size())];
     for (int i = 0; i < wc.length; i++)
       wc[i] = pq.poll();
     kw.keywords = wc;
