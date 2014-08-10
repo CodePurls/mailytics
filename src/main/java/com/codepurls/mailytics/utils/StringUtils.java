@@ -1,12 +1,17 @@
 package com.codepurls.mailytics.utils;
 
+import static java.lang.String.format;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -27,13 +32,14 @@ public class StringUtils {
   public static String toPlainText(String htmlText) {
     return Jsoup.clean(htmlText, Whitelist.none());
   }
-  
+
   public static boolean isBlank(String str) {
     return orEmpty(str).equals("");
   }
 
   public static List<String> parseCSV(String str) {
-    return Arrays.asList(CSV.split(str));
+    String[] strings = CSV.split(str);
+    return Arrays.stream(strings).map(x -> x.trim()).filter(x -> !x.isEmpty()).collect(Collectors.toList());
   }
 
   public static Iterable<String> tokenize(String line, boolean removeStopwords) {
@@ -71,5 +77,25 @@ public class StringUtils {
 
   public static boolean isStopWord(String term) {
     return STOP_WORDS.contains(term);
+  }
+
+  public static List<String> canonicalize(String string) {
+    if (string == null || string.isEmpty()) return Collections.emptyList();
+
+    List<String> strings = parseCSV(string);
+    List<String> transformed = new ArrayList<>(strings.size());
+    for (String str : strings) {
+      String name, email;
+      int emailStart = str.indexOf('<');
+      if (emailStart == -1) {
+        name = "";
+        email = str;
+      } else {
+        name = str.substring(0, emailStart).trim();
+        email = str.substring(emailStart + 1, str.length() - 1).trim();
+      }
+      transformed.add(format("%s %s", name, email));
+    }
+    return transformed;
   }
 }
