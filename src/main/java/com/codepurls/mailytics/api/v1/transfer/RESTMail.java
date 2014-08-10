@@ -15,5 +15,5 @@ public class RESTMail {
   public List<RESTAttachment> attachments;
   public String               language;
   public String               userAgent;
-  public String               topic;
+  public String               thread_topic;
 }

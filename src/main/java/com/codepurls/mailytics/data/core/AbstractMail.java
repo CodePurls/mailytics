@@ -1,6 +1,9 @@
 package com.codepurls.mailytics.data.core;
 
+import java.util.List;
+
 import com.codepurls.mailytics.utils.RFC822Constants;
+import com.codepurls.mailytics.utils.StringUtils;
 
 public abstract class AbstractMail<F extends MailFolder> implements Mail {
   protected final F folder;
@@ -14,11 +17,11 @@ public abstract class AbstractMail<F extends MailFolder> implements Mail {
   }
 
   public String getFrom() {
-    return getHeaders().get(RFC822Constants.FROM);
+    return StringUtils.canonicalize(getHeaders().get(RFC822Constants.FROM)).get(0);
   }
 
-  public String getTo() {
-    return getHeaders().get(RFC822Constants.TO);
+  public List<String> getTo() {
+    return StringUtils.canonicalize(getHeaders().get(RFC822Constants.TO));
   }
 
   public String getMessageId() {
@@ -29,11 +32,11 @@ public abstract class AbstractMail<F extends MailFolder> implements Mail {
     return getHeaders().get(RFC822Constants.SUBJECT);
   }
   
-  public String getCc() {
-    return getHeaders().get(RFC822Constants.CC);
+  public List<String> getCc() {
+    return StringUtils.canonicalize(getHeaders().get(RFC822Constants.CC));
   }
 
-  public String getBcc() {
-    return getHeaders().get(RFC822Constants.BCC);
+  public List<String> getBcc() {
+    return StringUtils.canonicalize(getHeaders().get(RFC822Constants.BCC));
   }
 }

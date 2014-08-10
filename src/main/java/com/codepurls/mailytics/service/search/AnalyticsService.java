@@ -35,6 +35,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
+import com.codepurls.mailytics.api.v1.transfer.Graph;
+import com.codepurls.mailytics.api.v1.transfer.Graph.Node;
 import com.codepurls.mailytics.data.search.Keywords;
 import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.data.search.Request.Resolution;
@@ -79,7 +81,7 @@ public class AnalyticsService {
   public Map<String, List<WordAndCount>> getHistogram(User user, Request request) throws ParseException, IOException {
     Map<String, TObjectIntHashMap<String>> results = new HashMap<>();
     IndexSearcher searcher = getSearcher(request, user);
-    TopDocs topDocs = searcher.search(searchService.getQuery(request), 10000);
+    TopDocs topDocs = searcher.search(searchService.getQuery(request), request.scanSize);
     for (ScoreDoc sd : topDocs.scoreDocs) {
       Document doc = searcher.doc(sd.doc);
       for (SchemaField r : request.histogramFields) {
@@ -103,8 +105,7 @@ public class AnalyticsService {
       List<WordAndCount> wc = new ArrayList<>(request.pageSize);
       for (int i = 0; i < request.pageSize; i++) {
         WordAndCount w = e.getValue().poll();
-        if(w == null)
-          break;
+        if (w == null) break;
         wc.add(w);
       }
       wcMap.put(e.getKey(), wc);
@@ -133,11 +134,29 @@ public class AnalyticsService {
     words.forEachEntry((a, b) -> pq.add(new WordAndCount(a, b)));
     scanner.close();
     Keywords kw = new Keywords();
-    WordAndCount[] wc = new WordAndCount[request.pageSize];
+    WordAndCount[] wc = new WordAndCount[Math.min(request.pageSize, pq.size())];
     for (int i = 0; i < wc.length; i++)
       wc[i] = pq.poll();
     kw.keywords = wc;
     return kw;
+  }
+
+  public Graph getNetwork(User user, Request request) throws ParseException, IOException {
+    IndexSearcher searcher = getSearcher(request, user);
+    Query query = searchService.getQuery(request);
+    TopDocs docs = searcher.search(query, request.scanSize);
+    GraphBuilder builder = new GraphBuilder();
+    for (ScoreDoc sd : docs.scoreDocs) {
+      Document doc = searcher.doc(sd.doc);
+      String from = doc.get(MailSchemaField.from.name());
+      List<String> to = StringUtils.parseCSV(doc.get(MailSchemaField.to.name()));
+      List<String> cc = StringUtils.parseCSV(doc.get(MailSchemaField.cc.name()));
+      Node fromNode = Node.of(from);
+      builder.addNode(fromNode);
+      to.stream().forEach(n-> builder.addEdge(fromNode, Node.of(n), 1.0f));
+      cc.stream().forEach(n-> builder.addEdge(fromNode, Node.of(n), 0.5f));
+    }
+    return builder.build();
   }
 
   private PriorityQueue<WordAndCount> createPriorityQueue() {
@@ -154,7 +173,7 @@ public class AnalyticsService {
     Query query = searchService.getQuery(request);
     IndexSearcher searcher = getSearcher(request, user);
     Filter f = NumericRangeFilter.newLongRange(MailSchemaField.date.name(), request.startTime, request.endTime, true, true);
-    TopDocs docs = searcher.search(query, f, 10000);
+    TopDocs docs = searcher.search(query, f, request.scanSize);
     Path tempFile = Files.createTempFile(format("kw-%s-%s", user.id, request.keywordField), ".mailytics.temp");
     PrintWriter writer = new PrintWriter(tempFile.toFile());
     TIntHashSet dupSet = new TIntHashSet();

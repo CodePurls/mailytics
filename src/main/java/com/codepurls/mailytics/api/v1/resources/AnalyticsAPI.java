@@ -20,10 +20,12 @@ import com.codepurls.mailytics.data.search.Request;
 import com.codepurls.mailytics.service.search.AnalyticsService;
 
 @Produces(MediaType.APPLICATION_JSON)
-public class AnalyticsAPI extends APIBase{
+public class AnalyticsAPI extends APIBase {
 
   @Context
   private AnalyticsService analyticsService;
+  @QueryParam("id")
+  private List<Integer>    mbIds;
 
   @GET
   @Path("entities")
@@ -33,34 +35,33 @@ public class AnalyticsAPI extends APIBase{
 
   @GET
   @Path("keywords")
-  public Response getKeywords(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+  public Response getKeywords() throws ParseException, IOException {
     Request request = createRequest(mbIds);
     return Response.ok(analyticsService.findKeywords(user, request)).build();
   }
 
   @GET
   @Path("histogram")
-  public Response getHistogram(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+  public Response getHistogram() throws ParseException, IOException {
     Request request = createRequest(mbIds);
     return Response.ok(analyticsService.getHistogram(user, request)).build();
   }
-  
+
   @GET
   @Path("trend")
-  public Response getTrend(@QueryParam("id") List<Integer> mbIds) throws ParseException, IOException {
+  public Response getTrend() throws ParseException, IOException {
     Request request = createRequest(mbIds);
     Map<Long, Integer> trend = analyticsService.getTrend(user, request);
     Map<String, Integer> response = new LinkedHashMap<>();
     for (Entry<Long, Integer> e : trend.entrySet()) {
-      if(e.getValue() == 0)
-        continue;
+      if (e.getValue() == 0) continue;
       response.put(request.resolution.format(e.getKey()), e.getValue());
     }
-// TODO: fix problem with following
-//    Map<String, Integer> response = trend.entrySet().stream()
-//    .filter(e-> e.getValue() > 0)
-//    .limit(request.pageSize)
-//    .collect(Collectors.toMap(k -> request.resolution.format(k.getKey()), v -> v.getValue()));
+    // TODO: fix problem with following
+    // Map<String, Integer> response = trend.entrySet().stream()
+    // .filter(e-> e.getValue() > 0)
+    // .limit(request.pageSize)
+    // .collect(Collectors.toMap(k -> request.resolution.format(k.getKey()), v -> v.getValue()));
     return Response.ok(response).build();
   }
 
@@ -78,8 +79,9 @@ public class AnalyticsAPI extends APIBase{
 
   @GET
   @Path("network")
-  public Response getNetwork() {
-    return Response.ok().build();
+  public Response getNetwork() throws ParseException, IOException {
+    Request request = createRequest(mbIds);
+    return Response.ok(analyticsService.getNetwork(user, request)).build();
   }
 
   @GET

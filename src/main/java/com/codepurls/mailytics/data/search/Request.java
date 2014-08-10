@@ -69,17 +69,18 @@ public class Request {
   }
 
   public String            query;
-  public SortType          sort                      = SortType.DATE;
-  public SortDirecton      sortDir                   = SortDirecton.DESC;
-  public int               pageSize                  = 10;
-  public int               pageNum                   = 1;
-  public long              startTime                 = -1;
-  public long              endTime                   = -1;
-  public List<Integer>     mailboxIds                = Collections.emptyList();
+  public SortType          sort            = SortType.DATE;
+  public SortDirecton      sortDir         = SortDirecton.DESC;
+  public int               pageSize        = 10;
+  public int               scanSize        = 10000;
+  public int               pageNum         = 1;
+  public long              startTime       = -1;
+  public long              endTime         = -1;
+  public List<Integer>     mailboxIds      = Collections.emptyList();
   public List<String>      similarFields;
-  public Resolution        resolution                = Resolution.DAY;
-  public SchemaField       trendField                = MailSchemaField.date;
-  public SchemaField       keywordField              = MailSchemaField.subject;
-  public List<SchemaField> histogramFields           = Collections.emptyList();
+  public Resolution        resolution      = Resolution.DAY;
+  public SchemaField       trendField      = MailSchemaField.date;
+  public SchemaField       keywordField    = MailSchemaField.subject;
+  public List<SchemaField> histogramFields = Collections.emptyList();
 
 }
