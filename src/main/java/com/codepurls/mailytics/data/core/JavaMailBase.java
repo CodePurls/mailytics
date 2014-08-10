@@ -17,11 +17,11 @@ import javax.mail.MessagingException;
 import javax.mail.Multipart;
 import javax.mail.Part;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codepurls.mailytics.service.ingest.MailReaderException;
+import com.codepurls.mailytics.utils.StringUtils;
 
 public abstract class JavaMailBase<F extends MailFolder> extends AbstractMail<F> {
   private static final Logger LOG = LoggerFactory.getLogger("JavaMailBase");
@@ -57,8 +57,9 @@ public abstract class JavaMailBase<F extends MailFolder> extends AbstractMail<F>
   public String getBody() {
     try {
       Object content = mail.getContent();
-      if (content instanceof String) return (String) content;
-      return findFirstBodyPart(content);
+      if (content instanceof String) return StringUtils.toSimpleText((String) content);
+      String bodyPart = findFirstBodyPart(content);
+      return StringUtils.toSimpleText(bodyPart);
     } catch (IOException | MessagingException e) {
       throw new MailReaderException("Error retrieving email body", e);
     }
@@ -112,7 +113,7 @@ public abstract class JavaMailBase<F extends MailFolder> extends AbstractMail<F>
     List<Attachment> result = new ArrayList<>();
     Object content = part.getContent();
     if (content instanceof InputStream || content instanceof String) {
-      if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) || StringUtils.isNotBlank(part.getFileName())) {
+      if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) || !StringUtils.isBlank(part.getFileName())) {
         result.add(newAttachment(part));
         return result;
       } else {

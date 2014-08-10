@@ -1,7 +1,6 @@
 package com.codepurls.mailytics.service.index;
 
 import static com.codepurls.mailytics.utils.StringUtils.orEmpty;
-import static com.codepurls.mailytics.utils.StringUtils.toPlainText;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -14,6 +13,7 @@ import java.util.Set;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -39,22 +39,23 @@ import com.google.common.hash.Hashing;
 public class MailIndexer {
   private static final int MAX_DOC_VALUE_SIZE = 32766;
 
-  public interface SchemaField{
+  public interface SchemaField {
     public String name();
+
     static SchemaField resolve(String name) {
-      if(MailSchemaField.STATIC_FIELD_NAMES.contains(name))
-        return MailSchemaField.valueOf(name);
+      if (MailSchemaField.STATIC_FIELD_NAMES.contains(name)) return MailSchemaField.valueOf(name);
       return () -> name;
     }
   }
-  public enum MailSchemaField implements SchemaField{
+
+  public enum MailSchemaField implements SchemaField {
     id {
       public Field[] getFields() {
         return new Field[] { new LongField(name(), 0L, Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
-        long id = Hashing.murmur3_128().hashString((mail.getDate().toString() +  mail.getFrom() + mail.getSubject()), Charsets.UTF_8).asLong();
+        long id = Hashing.murmur3_128().hashString((mail.getDate().toString() + mail.getFrom() + mail.getSubject()), Charsets.UTF_8).asLong();
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setLongValue(id);
         }
@@ -78,31 +79,26 @@ public class MailIndexer {
       public void retrieveValue(RESTMail mail, Document doc) {
       }
     },
-    content_type {
+    charset {
       public Field[] getFields() {
-        return new Field[] { new StringField(name(), "", Store.YES), new StringField("charset", "", Store.YES) };
+        return new Field[] { new StringField(name(), "", Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
-        String contentType = orEmpty(mail.getHeaders().get(RFC822Constants.CONTENT_TYPE));
-        for (String val : contentType.split(";")) {
-          val = val.trim().toLowerCase();
-          if(val.startsWith("boundary") || val.startsWith("format")) {
-            continue;
-          }else if(val.startsWith("charset")) {
-            String cs = val.split("=")[1];
-            if(cs.startsWith("\"")) {
-              cs = cs.substring(1);
-            }
-            if(cs.endsWith("\"")) {
-              cs = cs.substring(0, cs.lastIndexOf("\""));
-            }
-            cs=cs.toLowerCase();
-            ((Field) doc.getField("charset")).setStringValue(cs);
-          }else {
-            ((Field) doc.getField(name())).setStringValue(val);
-          }
-        }
+        ((Field) doc.getField(name())).setStringValue(mail.getCharset());
+      }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+      }
+
+    },
+    content_type {
+      public Field[] getFields() {
+        return new Field[] { new StringField(name(), "", Store.YES) };
+      }
+
+      public void setFieldValues(Document doc, Mail mail) {
+        ((Field) doc.getField(name())).setStringValue(mail.getContentType());
       }
 
       public void retrieveValue(RESTMail mail, Document doc) {
@@ -176,7 +172,7 @@ public class MailIndexer {
         mail.to = doc.get(name());
       }
     },
-    
+
     cc {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
@@ -189,15 +185,17 @@ public class MailIndexer {
           }
         }
       }
+
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.cc = doc.get(name());
       }
     },
-    
+
     bcc {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
       }
+
       public void setFieldValues(Document doc, Mail mail) {
         for (IndexableField f : doc.getFields(name())) {
           for (String bcc : mail.getBcc()) {
@@ -205,6 +203,7 @@ public class MailIndexer {
           }
         }
       }
+
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.bcc = doc.get(name());
       }
@@ -225,8 +224,8 @@ public class MailIndexer {
         mail.subject = doc.get(name());
       }
     },
-    
-    thread_topic{
+
+    thread_topic {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
       }
@@ -241,16 +240,39 @@ public class MailIndexer {
       public void retrieveValue(RESTMail mail, Document doc) {
         mail.thread_topic = doc.get(name());
       }
-      
+
+    },
+
+    contents_stored {
+      public Field[] getFields() {
+        FieldType ft = new FieldType();
+        ft.setIndexed(false);
+        ft.setStored(true);
+        ft.setTokenized(false);
+        Field f = new Field(name(), "", ft);
+        return new Field[] { f };
+      }
+
+      public void setFieldValues(Document doc, Mail mail) {
+        String text = orEmpty(mail.getBody());
+        text = text.substring(0, Math.min(text.length(), MAX_DOC_VALUE_SIZE));
+        for (IndexableField f : doc.getFields(name())) {
+          ((Field) f).setStringValue(text);
+        }
+      }
+
+      public void retrieveValue(RESTMail mail, Document doc) {
+      }
+
     },
 
     contents {
       public Field[] getFields() {
-        return new Field[] { new TextField(name(), "", Store.YES) };
+        return new Field[] { new TextField(name(), "", Store.NO) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
-        String text = toPlainText(orEmpty(mail.getBody()));
+        String text = orEmpty(mail.getActualBody());
         for (IndexableField f : doc.getFields(name())) {
           ((Field) f).setStringValue(text);
         }
@@ -260,8 +282,8 @@ public class MailIndexer {
         mail.body = doc.get(name());
       }
     },
-    
-    language{
+
+    language {
       public Field[] getFields() {
         return new Field[] { new StringField(name(), "", Store.YES) };
       }
@@ -277,14 +299,14 @@ public class MailIndexer {
         mail.language = doc.get(name());
       }
     },
-    user_agent{
+    user_agent {
       public Field[] getFields() {
         return new Field[] { new TextField(name(), "", Store.YES) };
       }
 
       public void setFieldValues(Document doc, Mail mail) {
         String ua = mail.getHeaders().get("user-agent");
-        if(StringUtils.isBlank(ua)) {
+        if (StringUtils.isBlank(ua)) {
           ua = mail.getHeaders().get("x-mailer");
         }
         for (IndexableField f : doc.getFields(name())) {
@@ -334,7 +356,7 @@ public class MailIndexer {
       }
 
     };
-    public final static Set<String>  STATIC_FIELD_NAMES;
+    public final static Set<String>       STATIC_FIELD_NAMES;
     public final static MailSchemaField[] STATIC_FIELDS;
     static {
       STATIC_FIELDS = MailSchemaField.values();
@@ -382,27 +404,26 @@ public class MailIndexer {
         LOG.error("Error setting field value {}, will ignore", mf, e);
       }
     });
-    
-    mail.getHeaders().entrySet().stream()
-    .filter(e-> !e.getKey().isEmpty() && !e.getKey().startsWith(" ") && !MailSchemaField.STATIC_FIELD_NAMES.contains(e.getKey()))
-    .forEach(e->{
-      String name = e.getKey().toLowerCase();
-      String value = e.getValue().substring(0, Math.min(e.getValue().length(), MAX_DOC_VALUE_SIZE));
-      try {
-        boolean found = false;
-        for (IndexableField f : document.getFields(name)) {
-          setValue((Field) f, value);
-          found = true;
-        }
-        if (!found) {
-          document.add(new TextField(name, value, Store.YES));
-          document.add(new SortedDocValuesField(name, new BytesRef(value)));
-        }
-      } catch (Exception ex) {
-        LOG.error("Error indexing header: {} -> {}", name, value, ex);
-      }
 
-    });
+    mail.getHeaders().entrySet().stream()
+        .filter(e -> !e.getKey().isEmpty() && !e.getKey().startsWith(" ") && !MailSchemaField.STATIC_FIELD_NAMES.contains(e.getKey())).forEach(e -> {
+          String name = e.getKey().toLowerCase();
+          String value = e.getValue().substring(0, Math.min(e.getValue().length(), MAX_DOC_VALUE_SIZE));
+          try {
+            boolean found = false;
+            for (IndexableField f : document.getFields(name)) {
+              setValue((Field) f, value);
+              found = true;
+            }
+            if (!found) {
+              document.add(new TextField(name, value, Store.YES));
+              document.add(new SortedDocValuesField(name, new BytesRef(value)));
+            }
+          } catch (Exception ex) {
+            LOG.error("Error indexing header: {} -> {}", name, value, ex);
+          }
+
+        });
     return document;
   }
 
