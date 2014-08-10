@@ -29,8 +29,35 @@ public class StringUtils {
     return str == null || str.isEmpty() ? "" : str;
   }
 
-  public static String toPlainText(String htmlText) {
-    return Jsoup.clean(htmlText, Whitelist.none());
+  public static String toSimpleText(String bodyPart) {
+    return Jsoup.clean(bodyPart, Whitelist.simpleText()).replace("&nbsp;", " ");
+  }
+
+  public static String toPlainText(String htmlText, String contentType) {
+    StringBuilder cleanText = new StringBuilder();
+    boolean isHtml = !contentType.equals("text/plain");
+    String text = isHtml ? Jsoup.clean(htmlText, new Whitelist().addTags("br")).replace("&nbsp;", " ") : htmlText;
+    String[] chunks = isHtml ? text.split("\\<br") : text.split("\\r\\n");
+    boolean breakLoop = false;
+    for (String chunk : chunks) {
+      chunk = chunk.trim();
+      if(chunk.isEmpty())
+        continue;
+      if(!isHtml && chunk.startsWith(">"))
+        breakLoop = true;
+      else if(chunk.startsWith("/>")) {
+        if(chunk.contains("From:") || chunk.contains("Original message") || chunk.contains("Original Appointment"))
+          breakLoop = true;
+        else if(chunk.contentEquals("/>") || chunk.contains("Sent from "))
+          continue;
+        else 
+          cleanText.append(chunk.replace("/>", ""));
+      }
+      if(breakLoop)
+        break;
+      cleanText.append(chunk);
+    }
+    return cleanText.toString();
   }
 
   public static boolean isBlank(String str) {
@@ -98,4 +125,5 @@ public class StringUtils {
     }
     return transformed;
   }
+
 }

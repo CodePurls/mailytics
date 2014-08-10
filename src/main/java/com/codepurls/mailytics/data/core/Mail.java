@@ -27,4 +27,9 @@ public interface Mail {
 
   public List<String> getBcc();
 
+  public String getActualBody();
+
+  public String getContentType();
+
+  public String getCharset();
 }
